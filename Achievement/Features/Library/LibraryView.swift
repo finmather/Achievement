@@ -107,6 +107,7 @@ private struct GameCard: View {
         VStack(alignment: .leading, spacing: 0) {
             RemoteArtView.portrait(for: game)
                 .aspectRatio(2 / 3, contentMode: .fit)
+                .clipped()
                 .overlay(alignment: .topTrailing) {
                     if isPerfect { PerfectSeal() }
                 }

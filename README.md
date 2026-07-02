@@ -27,20 +27,22 @@ everything in order:
    ```sh
    cd AchievementCore && swift test
    ```
-2. **Generate the Xcode project**:
+2. **Create your secrets file** (required before generating the project —
+   the spec references it). Get a key at https://steamcommunity.com/dev/apikey,
+   or leave it empty and use demo mode:
+   ```sh
+   cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
+   # edit Config/Secrets.xcconfig and paste your key (optional)
+   ```
+3. **Generate and open the Xcode project**:
    ```sh
    brew install xcodegen
    xcodegen generate
    open Achievement.xcodeproj
    ```
-3. **Add your Steam Web API key** (get one at
-   https://steamcommunity.com/dev/apikey):
-   ```sh
-   cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
-   # edit Config/Secrets.xcconfig and paste your key
-   ```
 4. **Run on the iPhone simulator.** No key? Tap **“Explore the demo”** on the
-   welcome screen — every feature works against curated sample data.
+   welcome screen — every feature works against curated sample data. The
+   `Achievement` scheme's Test action also runs the core package tests.
 
 ### Simulator verification checklist
 

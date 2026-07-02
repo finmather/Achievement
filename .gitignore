@@ -18,3 +18,6 @@ Package.resolved
 
 # Secrets — copy Config/Secrets.example.xcconfig to Config/Secrets.xcconfig
 Config/Secrets.xcconfig
+
+# Local tool settings
+.claude/

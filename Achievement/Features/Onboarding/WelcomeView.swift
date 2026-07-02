@@ -107,7 +107,10 @@ struct WelcomeView: View {
         }
         .alert(
             "Sign-in didn't complete",
-            isPresented: .constant(model.signInError != nil && !isVerifying),
+            isPresented: Binding(
+                get: { model.signInError != nil && !isVerifying },
+                set: { if !$0 { model.clearSignInError() } }
+            ),
             actions: { Button("OK") {} },
             message: { Text(model.signInError ?? "") }
         )

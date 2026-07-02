@@ -57,3 +57,60 @@ machine with no Swift toolchain, no Xcode, and no Docker. Consequences:
 
 **Next.** Build `AchievementCore`: domain models → engines (stats, streaks, history,
 sorting, comparison) → OpenID → Web API client → sample data → tests.
+
+---
+
+## 2026-07-03 — v1 code complete
+
+Everything in the v1 brief is written and committed: core package with ~60
+unit tests, all five screens, onboarding with verified OpenID sign-in, demo
+mode, design system, XcodeGen spec, and this documentation set. See
+ARCHITECTURE.md for the shape of things; highlights and honest caveats below.
+
+**Decisions made along the way.**
+- *Average vs overall completion*: the dashboard hero shows **average per-game
+  completion** (matches how Steam and completionists measure it); overall
+  unlocked/total is still computed and available. Both live in `LibraryStats`.
+- *"Almost There" rail*: added to the dashboard (games ≥70% and not perfect,
+  closest first) — for a completionist this is the single most motivating
+  list in the app. Not in the brief, but squarely in its spirit.
+- *Favourite genres (Profile)*: **deferred**. Needs the storefront
+  `appdetails` endpoint per app; would double first-sync traffic for a
+  tertiary stat. Logged in ARCHITECTURE.md as v2.
+- *Friend leaderboards*: full friends-wide average-completion leaderboards
+  would need a whole-library hydration **per friend** (hundreds of calls
+  each). v1 ships per-friend duels plus a "you lead in X of Y shared games"
+  head-to-head computed from the games already on screen.
+- *Celebrations*: refresh-discovered unlocks raise a gold toast + double-pulse
+  haptic on the dashboard; perfect games get a gold banner, crown seal, and a
+  one-time celebration haptic on the game page. Deliberately no confetti.
+
+**Sample-data bug caught in review** (worth remembering as a pattern): rarity
+percentages used additive jitter on top of exponential decay, so deep lists
+could never reach the Legendary tier and `testRarityTiersSpanTheSpectrum...`
+would have failed. Fixed by scaling jitter with the decay. Found by re-reading
+the math against the test's assertion — the discipline of writing tests that
+assert *invariants* (not snapshots) paid off before a compiler ever ran.
+
+**Honest status: not yet compiled.** No Swift toolchain exists on this
+machine. The riskiest spots to check first on a Mac, in order:
+1. `swift test` in `AchievementCore` — engines/planner/OpenID/client tests.
+2. Strict-concurrency diagnostics in `LibrarySyncService.run` (task-group
+   result handling mutates locals from the group body — standard pattern,
+   but the checker has opinions) and in `SteamWebAPIClient.achievements`
+   (async-let over internal DTO arrays).
+3. `xcodegen generate` — the scheme's package-test reference syntax
+   (`package: AchievementCore/AchievementCoreTests`) and the `configFiles`
+   requirement that `Config/Secrets.xcconfig` exists (README step 2).
+4. Simulator walk per the README checklist; profile scrolling on a
+   several-hundred-game library (AsyncImage has no disk cache — v2 item).
+
+**Verification I could and did do here:** every JSON asset validated, all
+fixture JSON in tests parsed with an external JSON parser, test assertions
+recomputed by hand against the sample-data spec table (completion sums,
+streak days, rarity boundaries), and a full re-read of cross-file API usage
+(store ↔ core signatures, navigation values, environment plumbing). That
+review pass caught and fixed two UI bugs before first compile: the welcome
+screen's error alert used a `.constant` binding (would re-present forever
+after OK), and library cards lacked a `.clipped()` for the landscape-header
+artwork fallback (460×215 filling a 2:3 slot would bleed over the card).

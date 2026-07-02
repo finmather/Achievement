@@ -84,6 +84,10 @@ final class AppModel {
         }
     }
 
+    func clearSignInError() {
+        signInError = nil
+    }
+
     func signOut() {
         let home: HomeModel? = {
             if case .active(let model) = session { return model }
