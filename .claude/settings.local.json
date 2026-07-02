@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(swift --version)",
+      "PowerShell(docker --version)",
+      "PowerShell(git init)",
+      "PowerShell(git config user.name)",
+      "PowerShell(git config user.email)",
+      "PowerShell(git config user.name \"Fin Mather\")",
+      "PowerShell(git config user.email \"sgmather@gmail.com\")",
+      "PowerShell(git config core.autocrlf false)",
+      "PowerShell(git add -A)"
+    ]
+  }
+}
