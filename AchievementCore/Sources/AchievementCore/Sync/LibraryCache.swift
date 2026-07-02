@@ -54,6 +54,18 @@ public actor LibraryCache {
         save(achievements, achievementsName(appID))
     }
 
+    /// Every hydrated game's achievements, keyed by appID — feeds unlock
+    /// history (dashboard rail, streaks, profile charts) without refetching.
+    public func allAchievements() -> [Int: [Achievement]] {
+        var result: [Int: [Achievement]] = [:]
+        for appID in hydratedAppIDs() {
+            if let achievements = achievements(appID: appID), !achievements.isEmpty {
+                result[appID] = achievements
+            }
+        }
+        return result
+    }
+
     public func hydratedAppIDs() -> Set<Int> {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return Set(names.compactMap { name in

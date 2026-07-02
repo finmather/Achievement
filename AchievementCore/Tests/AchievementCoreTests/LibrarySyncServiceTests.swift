@@ -208,6 +208,12 @@ final class LibraryCacheTests: XCTestCase {
         XCTAssertEqual(hydrated, [620])
         let missing = await cache.achievements(appID: 999)
         XCTAssertNil(missing)
+
+        // Empty lists (games without achievements) stay out of the unlock feed.
+        await cache.storeAchievements([], appID: 777)
+        let all = await cache.allAchievements()
+        XCTAssertEqual(all.keys.sorted(), [620])
+        XCTAssertEqual(all[620], achievements)
     }
 
     func testClearRemovesEverything() async {
