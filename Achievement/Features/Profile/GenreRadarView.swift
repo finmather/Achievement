@@ -87,15 +87,14 @@ struct GenreRadarView: View {
 
     private var axisLabels: some View {
         ForEach(Array(profile.axes.enumerated()), id: \.element.axis) { index, axisScore in
-            let angle = RadarGeometry.angle(for: index)
-            let radius = size / 2 - 16
             Text(axisScore.axis.displayName)
                 .font(.caption2.weight(selected == axisScore.axis ? .bold : .semibold))
                 .foregroundStyle(selected == axisScore.axis ? Theme.accent : .secondary)
-                .position(
-                    x: size / 2 + cos(angle) * radius,
-                    y: size / 2 + sin(angle) * radius
-                )
+                .position(RadarGeometry.point(
+                    center: CGPoint(x: size / 2, y: size / 2),
+                    index: index,
+                    radius: Double(size / 2 - 16)
+                ))
                 .onTapGesture {
                     Haptics.lightTap()
                     withAnimation(.spring(duration: 0.35, bounce: 0.4)) {
@@ -107,11 +106,10 @@ struct GenreRadarView: View {
 
     private func vertexPoint(for axisScore: GenreAxisScore) -> CGPoint {
         let index = profile.axes.firstIndex { $0.axis == axisScore.axis } ?? 0
-        let angle = RadarGeometry.angle(for: index)
-        let radius = (size / 2 - 42) * axisScore.score * expansion
-        return CGPoint(
-            x: size / 2 + cos(angle) * radius,
-            y: size / 2 + sin(angle) * radius
+        return RadarGeometry.point(
+            center: CGPoint(x: size / 2, y: size / 2),
+            index: index,
+            radius: Double(size / 2 - 42) * axisScore.score * expansion
         )
     }
 
@@ -173,8 +171,18 @@ struct GenreRadarView: View {
 
 private enum RadarGeometry {
     /// Axis 0 points straight up; the rest follow clockwise every 60°.
-    static func angle(for index: Int) -> CGFloat {
-        -CGFloat.pi / 2 + CGFloat(index) * .pi / 3
+    /// Double (not CGFloat) so `cos`/`sin` resolve unambiguously.
+    static func angle(for index: Int) -> Double {
+        -Double.pi / 2 + Double(index) * .pi / 3
+    }
+
+    /// A vertex at `radius` along axis `index` from `center`.
+    static func point(center: CGPoint, index: Int, radius: Double) -> CGPoint {
+        let angle = angle(for: index)
+        return CGPoint(
+            x: center.x + CGFloat(cos(angle) * radius),
+            y: center.y + CGFloat(sin(angle) * radius)
+        )
     }
 }
 
@@ -183,15 +191,13 @@ private struct RadarWeb: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let maxRadius = min(rect.width, rect.height) / 2 - 42
+        let maxRadius = Double(min(rect.width, rect.height) / 2 - 42)
 
         for level in [0.33, 0.66, 1.0] {
             let radius = maxRadius * level
             for index in 0...6 {
-                let angle = RadarGeometry.angle(for: index % 6)
-                let point = CGPoint(
-                    x: center.x + cos(angle) * radius,
-                    y: center.y + sin(angle) * radius
+                let point = RadarGeometry.point(
+                    center: center, index: index % 6, radius: radius
                 )
                 if index == 0 {
                     path.move(to: point)
@@ -202,11 +208,9 @@ private struct RadarWeb: Shape {
         }
 
         for index in 0..<6 {
-            let angle = RadarGeometry.angle(for: index)
             path.move(to: center)
-            path.addLine(to: CGPoint(
-                x: center.x + cos(angle) * maxRadius,
-                y: center.y + sin(angle) * maxRadius
+            path.addLine(to: RadarGeometry.point(
+                center: center, index: index, radius: maxRadius
             ))
         }
         return path
@@ -227,15 +231,14 @@ private struct RadarPolygon: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let maxRadius = min(rect.width, rect.height) / 2 - 42
+        let maxRadius = Double(min(rect.width, rect.height) / 2 - 42)
 
         for (index, score) in scores.enumerated() {
-            let angle = RadarGeometry.angle(for: index)
             // A floor keeps zero axes visible as a dimple, not a spike hole.
-            let radius = maxRadius * max(0.04, score) * expansion
-            let point = CGPoint(
-                x: center.x + cos(angle) * radius,
-                y: center.y + sin(angle) * radius
+            let point = RadarGeometry.point(
+                center: center,
+                index: index,
+                radius: maxRadius * max(0.04, score) * expansion
             )
             if index == 0 {
                 path.move(to: point)
