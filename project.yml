@@ -56,6 +56,8 @@ targets:
     settings:
       base:
         SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Achievement
 
 schemes:
   Achievement:
