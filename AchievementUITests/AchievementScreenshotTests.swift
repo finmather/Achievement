@@ -37,8 +37,9 @@ final class AchievementScreenshotTests: XCTestCase {
             search.typeText("zzzz\n") // return dismisses the keyboard
             sleep(1)
             capture(app, name: "04-library-empty-search")
-            app.buttons["Clear search"].tap()
-            sleep(1)
+            // No clearing needed — two elements share the "Clear search"
+            // label (field ✕ and empty-state action), and the walk moves
+            // to another tab anyway.
         }
 
         tabBar.buttons["Friends"].tap()

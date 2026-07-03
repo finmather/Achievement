@@ -213,7 +213,9 @@ private struct HeroCompletion: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Tall enough for the full arc (240 + glow): only the trailing
+            // edge bleeds off-screen; caps stay visible.
+            .frame(maxWidth: .infinity, minHeight: 258, alignment: .leading)
             .clipped()
 
             HStack(spacing: 32) {

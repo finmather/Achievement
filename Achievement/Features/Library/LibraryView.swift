@@ -186,8 +186,12 @@ private struct FeaturedCover: View {
     var body: some View {
         NavigationLink(value: game) {
             ZStack(alignment: .bottomLeading) {
-                RemoteArtView.wide(for: game)
+                // Aspect ratio lives on a neutral view: putting it on the
+                // resizable fill image lets native image size leak into
+                // layout in unbounded-height scroll contexts.
+                Color.clear
                     .aspectRatio(21 / 10, contentMode: .fit)
+                    .overlay { RemoteArtView.wide(for: game) }
                     .clipped()
                     .overlay {
                         LinearGradient(
@@ -270,8 +274,9 @@ private struct CoverCard: View {
     var body: some View {
         NavigationLink(value: game) {
             VStack(alignment: .leading, spacing: 0) {
-                RemoteArtView.portrait(for: game)
+                Color.clear
                     .aspectRatio(2 / 3, contentMode: .fit)
+                    .overlay { RemoteArtView.portrait(for: game) }
                     .clipped()
             }
             .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))

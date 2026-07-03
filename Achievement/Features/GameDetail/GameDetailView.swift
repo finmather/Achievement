@@ -179,9 +179,9 @@ private struct FloatingCover: View {
     let game: Game
 
     var body: some View {
-        RemoteArtView.wide(for: game)
+        Color.clear
             .aspectRatio(21 / 10, contentMode: .fit)
-            .clipped()
+            .overlay { RemoteArtView.wide(for: game) }
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 30, style: .continuous)

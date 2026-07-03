@@ -71,6 +71,8 @@ struct AvatarView: View {
     }
 
     private var hue: Double {
-        Double(profile.id.rawValue % 360) / 360
+        // Constrained to the aurora band (indigo → teal) so generated
+        // avatars never fight the palette.
+        0.52 + Double(profile.id.rawValue % 240) / 1000
     }
 }
