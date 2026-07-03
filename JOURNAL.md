@@ -144,3 +144,46 @@ Findings from the first real compile:
 
 **Still Mac-only:** the SwiftUI app target (screens, animations, gestures,
 simulator walk). Everything below the UI is now compiler- and test-verified.
+
+---
+
+## 2026-07-03 — The Aurora redesign
+
+Full visual-language overhaul on the user's direction: v1 read as generic
+("cards on white, obviously generated"). New language, new bar: an app that
+could plausibly be featured — inspired by Gentler Streak / Flighty / Arc
+Search / Forest, deliberately not Apple-clone.
+
+**The language.** Living MeshGradient aurora behind every screen (drifts at
+rest, reacts to scroll, dusk palette in dark / dawn mist in light,
+reduce-motion honored). Rectangles are gone: surfaces are glass chips
+(capsule / circle / continuous blob), content floats in whitespace grouped
+by proximity. Editorial type (64pt rounded numerals, kerned caps labels).
+Choreographed springs everywhere: staggered entrances, glowing ring sweeps,
+breathing placeholders, zoom transition from library covers into detail.
+
+**Signature pieces.** (1) Genre radar hexagon on the profile — six axes
+scored by GenreEngine from SteamSpy community tags, polygon springs out,
+vertices tappable, strongest axis auto-spotlights. (2) Bespoke unlock
+celebration — rarity glow bloom, spring icon landing, staged haptics,
+drifting embers (no confetti), triggered on fresh unlocks and replayable
+from the dashboard spotlight.
+
+**Decisions.**
+- iOS 17 → **18**: MeshGradient, `navigationTransition(.zoom)`,
+  `onScrollGeometryChange` are the redesign's backbone.
+- Genre tags via **SteamSpy** (Steam's own genres lack Roguelike/FPS/etc.);
+  fetched lazily for played games, cached forever, radar degrades to a
+  "keep playing" state without data.
+- All illustration is **programmatic SwiftUI** (empty-state orbits, ember
+  field, radar) — one cohesive style, both color schemes free.
+- Habits/year-summary/milestone logic all landed as **pure core engines**
+  first (89 tests green locally) so the flashy layer stays thin.
+
+**Verification loop (no Mac here).** CI now runs the screenshot walk twice
+(dark with screen-recorded video, then light), captures 9 states including
+the celebration (`UI_TEST_CELEBRATE=1`), radar, and empty search, and
+uploads screenshots + motion video as artifacts. The review discipline:
+pull artifacts, inspect stills for spacing/alignment/template-smell, watch
+the video for animation timing, fix, push again. First pass is a draft by
+definition — polish iterations expected and planned.

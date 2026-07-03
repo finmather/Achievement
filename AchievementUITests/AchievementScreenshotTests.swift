@@ -1,10 +1,12 @@
 import XCTest
 
-/// Walks every screen in demo mode and attaches a screenshot of each.
-/// Run via the `AchievementScreenshots` scheme; CI extracts the attachments
-/// from the resulting .xcresult with xcparse. `UI_TEST_DEMO_MODE=1` makes
-/// the app skip onboarding and launch straight into demo data, so this
-/// needs no simulated sign-in.
+/// Walks every screen in demo mode and attaches a screenshot of each. CI
+/// runs this twice (dark, then light) and also records the whole walk as
+/// video for frame-by-frame motion review — this project is authored on
+/// Windows, so these artifacts *are* the design review.
+///
+/// Sleeps are deliberate: entrance choreography, ring sweeps, and the radar
+/// spring need to settle before a still is worth reviewing.
 final class AchievementScreenshotTests: XCTestCase {
     func testCaptureAllScreens() throws {
         let app = XCUIApplication()
@@ -12,41 +14,69 @@ final class AchievementScreenshotTests: XCTestCase {
         app.launch()
 
         let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 15), "app did not reach the main tab view")
-
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 20), "app did not reach the main tabs")
+        sleep(3) // demo load + entrance stagger + hero arc sweep
         capture(app, name: "01-dashboard")
 
+        // Library: cover wall, zoom into detail, then the empty search state.
         tabBar.buttons["Library"].tap()
-        _ = app.scrollViews.firstMatch.waitForExistence(timeout: 5)
+        sleep(2)
         capture(app, name: "02-library")
 
-        let firstGameCard = app.scrollViews.firstMatch.buttons.firstMatch
-        if firstGameCard.waitForExistence(timeout: 5) {
-            firstGameCard.tap()
-            sleep(1)
+        let firstCover = app.scrollViews.firstMatch.buttons.firstMatch
+        if firstCover.waitForExistence(timeout: 5) {
+            firstCover.tap()
+            sleep(2) // zoom transition + backdrop bloom
             capture(app, name: "03-game-detail")
-            if app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 3) {
-                app.navigationBars.buttons.firstMatch.tap()
-            }
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
+        }
+
+        let search = app.textFields["library.search"]
+        if search.waitForExistence(timeout: 5) {
+            search.tap()
+            search.typeText("zzzz\n") // return dismisses the keyboard
+            sleep(1)
+            capture(app, name: "04-library-empty-search")
+            app.buttons["Clear search"].tap()
+            sleep(1)
         }
 
         tabBar.buttons["Friends"].tap()
-        sleep(1)
-        capture(app, name: "04-friends")
+        sleep(2)
+        capture(app, name: "05-friends")
 
-        let firstFriendRow = app.scrollViews.firstMatch.buttons.firstMatch
-        if firstFriendRow.waitForExistence(timeout: 5) {
-            firstFriendRow.tap()
-            sleep(2) // comparison hydrates progressively; give it a moment
-            capture(app, name: "05-friend-compare")
-            if app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 3) {
-                app.navigationBars.buttons.firstMatch.tap()
-            }
+        let firstFriend = app.scrollViews.firstMatch.buttons.firstMatch
+        if firstFriend.waitForExistence(timeout: 5) {
+            firstFriend.tap()
+            sleep(3) // duel bars animate + shared progress hydrates
+            capture(app, name: "06-friend-compare")
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
         }
 
         tabBar.buttons["Profile"].tap()
+        sleep(3) // radar springs out and auto-selects the strongest axis
+        capture(app, name: "07-profile-radar")
+
+        app.swipeUp()
         sleep(1)
-        capture(app, name: "06-profile")
+        capture(app, name: "08-profile-passport")
+    }
+
+    func testCaptureCelebration() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UI_TEST_DEMO_MODE"] = "1"
+        app.launchEnvironment["UI_TEST_CELEBRATE"] = "1"
+        app.launch()
+
+        // The celebration fires shortly after the library loads; its
+        // Continue button appears once the choreography settles.
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 25),
+                      "celebration overlay never settled")
+        sleep(1) // embers mid-drift
+        capture(app, name: "09-celebration")
     }
 
     private func capture(_ app: XCUIApplication, name: String) {

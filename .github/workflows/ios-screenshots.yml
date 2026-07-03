@@ -8,7 +8,7 @@ on:
 jobs:
   build-and-capture:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -29,22 +29,50 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: List available simulators
-        run: xcrun simctl list devices available iPhone
-
-      - name: Run screenshot UI test
+      - name: Boot simulator
         run: |
+          xcrun simctl list devices available iPhone
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone 16 Pro \(" | head -1 | grep -oE '[0-9A-F-]{36}')
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+
+      # Dark first — it's the marketing look. The whole dark walk is also
+      # recorded as video for frame-by-frame motion review.
+      - name: Screenshot walk (dark, with video)
+        run: |
+          xcrun simctl ui "$DEVICE_ID" appearance dark
+          xcrun simctl io "$DEVICE_ID" recordVideo --codec h264 --force walk-dark.mp4 &
+          echo "REC_PID=$!" >> "$GITHUB_ENV"
           xcodebuild test \
             -project Achievement.xcodeproj \
             -scheme AchievementScreenshots \
-            -destination "platform=iOS Simulator,name=iPhone 16 Pro" \
-            -resultBundlePath TestResults.xcresult
+            -destination "id=$DEVICE_ID" \
+            -resultBundlePath Dark.xcresult
 
-      - name: Extract screenshots from test result
+      - name: Stop video recording
         if: always()
         run: |
-          mkdir -p screenshots
-          xcparse screenshots TestResults.xcresult screenshots/
+          if [ -n "$REC_PID" ]; then
+            kill -INT "$REC_PID" || true
+            sleep 4
+          fi
+
+      - name: Screenshot walk (light)
+        run: |
+          xcrun simctl ui "$DEVICE_ID" appearance light
+          xcodebuild test \
+            -project Achievement.xcodeproj \
+            -scheme AchievementScreenshots \
+            -destination "id=$DEVICE_ID" \
+            -resultBundlePath Light.xcresult
+
+      - name: Extract screenshots
+        if: always()
+        run: |
+          mkdir -p screenshots/dark screenshots/light
+          [ -d Dark.xcresult ] && xcparse screenshots Dark.xcresult screenshots/dark || true
+          [ -d Light.xcresult ] && xcparse screenshots Light.xcresult screenshots/light || true
 
       - name: Upload screenshots
         if: always()
@@ -54,9 +82,20 @@ jobs:
           path: screenshots/
           if-no-files-found: warn
 
-      - name: Upload full test result bundle
+      - name: Upload motion video
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcresult
-          path: TestResults.xcresult
+          name: motion-video
+          path: walk-dark.mp4
+          if-no-files-found: warn
+
+      - name: Upload result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresults
+          path: |
+            Dark.xcresult
+            Light.xcresult
+          if-no-files-found: warn

@@ -102,19 +102,32 @@ real appIDs so CDN art loads, seeded so it's stable, unlock dates relative to
 now so streaks are alive) makes every screen fully explorable with no key and
 no account — and it's what SwiftUI previews use.
 
-## Design system
+## Design system — the Aurora language
 
-- **One completion language:** indigo → blue → teal as progress climbs; gold
-  is reserved exclusively for perfect games. Rarity has its own fixed palette
-  (gray/green/blue/purple/gold).
-- **Motion:** springs only (`.spring(duration:bounce:)`), rings sweep on
-  appear and re-spring on change, cards deform 1.5–3% on press with a soft
-  haptic, celebrations get a two-pulse haptic. Nothing loops except the
-  (slow, low-contrast) loading shimmer.
-- **Typography:** SF Rounded for numerals (stat tiles, rings, counts), stock
-  SF for text; uppercase kerned labels for stat captions.
-- **Surfaces:** hairline-stroked cards on a soft two-stop background wash; no
-  glassmorphism, shadows kept faint.
+- **Backgrounds:** `AuroraBackground` — a 3×3 MeshGradient whose interior
+  points drift on a 20fps timeline and shift with scroll offset. Dusk
+  palette in dark, dawn mist in light; `hero`/`celebration` intensities.
+  Reduce-motion freezes it. Nothing in the app sits on a flat fill.
+- **Shape:** no card rectangles. Surfaces are `glassChip` (capsule, circle,
+  or continuous-corner blob of ultra-thin material with a frost stroke);
+  most content floats unboxed, grouped by proximity (`FloatingSection`).
+  Rings overlap artwork corners; perfect games wear gold coins and auras.
+- **One completion language:** indigo → blue → teal as progress climbs;
+  gold strictly reserved for perfection. Rarity palette
+  (gray/green/blue/purple/gold) doubles as glow color.
+- **Type:** editorial — 64pt rounded hero numerals with tight tracking,
+  kerned uppercase caps-labels, 34pt rounded titles.
+- **Motion:** springs only, choreographed. `.entrance(index:)` staggers
+  every screen's first paint; rings sweep with a blurred glow halo; covers
+  zoom into detail (`navigationTransition(.zoom)`); placeholders breathe
+  instead of shimmer; press = 1.5–3% deform + soft haptic. The unlock
+  celebration is the loudest moment in the app and still restrained: glow
+  bloom, spring landing, staged haptics, drifting embers.
+- **Illustration:** all programmatic (empty-state orbit motes, ember field,
+  radar web) — one style, resolution-independent, scheme-adaptive.
+- **Signature visuals:** the profile's genre radar hexagon (Canvas-free
+  Shape with animatable expansion, tappable vertices) and the unlock
+  celebration overlay.
 
 ## Testing
 
