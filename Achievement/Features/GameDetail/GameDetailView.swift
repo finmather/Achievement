@@ -179,12 +179,11 @@ private struct FloatingCover: View {
     let game: Game
 
     var body: some View {
-        Color.clear
-            .aspectRatio(21 / 10, contentMode: .fit)
-            // Hard cap: no layout-proposal quirk (or transition state) may
-            // ever balloon the cover past its design height.
-            .frame(maxHeight: 210)
-            .overlay { RemoteArtView.wide(for: game) }
+        // Fixed height + fill + clip: fully deterministic sizing, immune to
+        // aspect-ratio proposal quirks in unbounded scroll contexts.
+        RemoteArtView.wide(for: game)
+            .frame(height: 200)
+            .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 30, style: .continuous)

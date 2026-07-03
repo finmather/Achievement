@@ -9,7 +9,6 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var sort: LibrarySort = .recentlyPlayed
     @State private var scrollOffset: CGFloat = 0
-    @Namespace private var zoom
 
     private var library: LibraryStore { home.library }
 
@@ -49,9 +48,11 @@ struct LibraryView: View {
             .refreshable { await library.refresh() }
         }
         .toolbar(.hidden, for: .navigationBar)
+        // Zoom transition (navigationTransition .zoom) misbehaved in the CI
+        // simulator — the portal snapshot never settled. Standard push for
+        // now; revisit zoom on real hardware.
         .navigationDestination(for: Game.self) { game in
             GameDetailView(game: game, home: home)
-                .navigationTransition(.zoom(sourceID: game.appID, in: zoom))
         }
     }
 
@@ -78,15 +79,13 @@ struct LibraryView: View {
 
             if let featured {
                 FeaturedCover(game: featured)
-                    .matchedTransitionSource(id: featured.appID, in: zoom)
                     .accessibilityIdentifier("library.cover")
                     .entrance(4)
             }
 
             StaggeredCoverGrid(
                 games: featured.map { hero in filtered.filter { $0.appID != hero.appID } }
-                    ?? filtered,
-                namespace: zoom
+                    ?? filtered
             )
             .animation(.spring(duration: 0.35), value: filtered.map(\.appID))
         }
@@ -240,7 +239,6 @@ private struct FeaturedCover: View {
 /// collage instead of a spreadsheet of thumbnails.
 private struct StaggeredCoverGrid: View {
     let games: [Game]
-    let namespace: Namespace.ID
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -254,7 +252,6 @@ private struct StaggeredCoverGrid: View {
         LazyVStack(spacing: 16) {
             ForEach(games) { game in
                 CoverCard(game: game)
-                    .matchedTransitionSource(id: game.appID, in: namespace)
                     .accessibilityIdentifier("library.cover")
                     .scrollTransition(.animated(.spring(duration: 0.4))) { content, phase in
                         content

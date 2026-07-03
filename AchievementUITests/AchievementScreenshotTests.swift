@@ -1,24 +1,39 @@
 import XCTest
 
 /// Walks every screen in demo mode and attaches a screenshot of each. CI
-/// runs this twice (dark, then light) and also records the whole walk as
-/// video for frame-by-frame motion review — this project is authored on
-/// Windows, so these artifacts *are* the design review.
+/// runs this twice (dark, then light) and records the dark walk as video —
+/// this project is authored on Windows, so these artifacts *are* the design
+/// review.
 ///
-/// Sleeps are deliberate: entrance choreography, ring sweeps, and the radar
-/// spring need to settle before a still is worth reviewing.
+/// One test, one launch: the celebration fires at startup (via launch env)
+/// and is captured first, so the walk never needs to relaunch the app —
+/// XCUITest's terminate-and-relaunch flakes on actively-animating apps.
 final class AchievementScreenshotTests: XCTestCase {
+    override func tearDown() {
+        XCUIApplication().terminate()
+        super.tearDown()
+    }
+
     func testCaptureAllScreens() throws {
         let app = XCUIApplication()
         app.launchEnvironment["UI_TEST_DEMO_MODE"] = "1"
+        app.launchEnvironment["UI_TEST_CELEBRATE"] = "1"
         app.launch()
 
+        // The unlock celebration greets us shortly after launch.
+        let continueButton = app.buttons["Continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 25),
+                      "celebration overlay never settled")
+        sleep(1) // embers mid-drift
+        capture(app, name: "00-celebration")
+        continueButton.tap()
+        sleep(1)
+
         let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 20), "app did not reach the main tabs")
-        sleep(3) // demo load + entrance stagger + hero arc sweep
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10), "no tab bar after celebration")
+        sleep(2) // entrance stagger + hero arc sweep
         capture(app, name: "01-dashboard")
 
-        // Library: cover wall, zoom into detail, then the empty search state.
         tabBar.buttons["Library"].tap()
         sleep(2)
         capture(app, name: "02-library")
@@ -26,7 +41,7 @@ final class AchievementScreenshotTests: XCTestCase {
         let firstCover = app.buttons.matching(identifier: "library.cover").firstMatch
         if firstCover.waitForExistence(timeout: 5) {
             firstCover.tap()
-            sleep(3) // zoom transition + backdrop bloom
+            sleep(2)
             capture(app, name: "03-game-detail")
             app.swipeUp()
             sleep(1)
@@ -40,9 +55,6 @@ final class AchievementScreenshotTests: XCTestCase {
             search.typeText("zzzz\n") // return dismisses the keyboard
             sleep(1)
             capture(app, name: "04-library-empty-search")
-            // No clearing needed — two elements share the "Clear search"
-            // label (field ✕ and empty-state action), and the walk moves
-            // to another tab anyway.
         }
 
         tabBar.buttons["Friends"].tap()
@@ -64,21 +76,6 @@ final class AchievementScreenshotTests: XCTestCase {
         app.swipeUp()
         sleep(1)
         capture(app, name: "08-profile-passport")
-    }
-
-    func testCaptureCelebration() throws {
-        let app = XCUIApplication()
-        app.launchEnvironment["UI_TEST_DEMO_MODE"] = "1"
-        app.launchEnvironment["UI_TEST_CELEBRATE"] = "1"
-        app.launch()
-
-        // The celebration fires shortly after the library loads; its
-        // Continue button appears once the choreography settles.
-        let continueButton = app.buttons["Continue"]
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 25),
-                      "celebration overlay never settled")
-        sleep(1) // embers mid-drift
-        capture(app, name: "09-celebration")
     }
 
     /// Back-navigation that can never fail the walk: try the bar button,
