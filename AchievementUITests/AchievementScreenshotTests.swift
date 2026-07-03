@@ -38,14 +38,51 @@ final class AchievementScreenshotTests: XCTestCase {
         sleep(2)
         capture(app, name: "02-library")
 
-        let firstCover = app.buttons.matching(identifier: "library.cover").firstMatch
-        if firstCover.waitForExistence(timeout: 5) {
-            firstCover.tap()
+        // Exercise sorting, then restore the default order.
+        let sortChip = app.buttons["Most Completed"].firstMatch
+        if sortChip.waitForExistence(timeout: 4) {
+            sortChip.tap()
+            sleep(1)
+            capture(app, name: "02b-library-sorted")
+            app.buttons["Recently Played"].firstMatch.tap()
+            sleep(1)
+        }
+
+        let covers = app.buttons.matching(identifier: "library.cover")
+        if covers.firstMatch.waitForExistence(timeout: 5) {
+            covers.firstMatch.tap()
             sleep(2)
             capture(app, name: "03-game-detail")
             app.swipeUp()
             sleep(1)
             capture(app, name: "03b-game-detail-scrolled")
+            app.swipeUp()
+            sleep(1)
+            capture(app, name: "03c-game-detail-deep")
+
+            // Personal notes editor.
+            let notes = app.buttons["detail.notes"]
+            if notes.waitForExistence(timeout: 4) {
+                notes.tap()
+                sleep(1)
+                let editor = app.textViews.firstMatch
+                if editor.waitForExistence(timeout: 3) {
+                    editor.tap()
+                    app.typeText("Fists-only run next - Aspect of Demeter.")
+                    sleep(1)
+                }
+                capture(app, name: "03d-detail-notes")
+                app.buttons["Done"].firstMatch.tap()
+                sleep(1)
+            }
+            goBack(app)
+        }
+
+        // A second, non-featured game for grid-card coverage.
+        if covers.count > 2 {
+            covers.element(boundBy: 2).tap()
+            sleep(2)
+            capture(app, name: "03e-second-game")
             goBack(app)
         }
 
@@ -72,6 +109,14 @@ final class AchievementScreenshotTests: XCTestCase {
         tabBar.buttons["Profile"].tap()
         sleep(3) // radar springs out and auto-selects the strongest axis
         capture(app, name: "07-profile-radar")
+
+        // Tap a different radar axis to exercise the vertex reveal.
+        let axisLabel = app.staticTexts["Roguelike"].firstMatch
+        if axisLabel.waitForExistence(timeout: 4) {
+            axisLabel.tap()
+            sleep(1)
+            capture(app, name: "07b-profile-radar-axis")
+        }
 
         app.swipeUp()
         sleep(1)

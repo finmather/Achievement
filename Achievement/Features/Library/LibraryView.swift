@@ -9,6 +9,7 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var sort: LibrarySort = .recentlyPlayed
     @State private var scrollOffset: CGFloat = 0
+    @Namespace private var zoom
 
     private var library: LibraryStore { home.library }
 
@@ -41,18 +42,22 @@ struct LibraryView: View {
 
                     content
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Tokens.screenMargin)
                 .padding(.bottom, 40)
             }
+            .scrollClipDisabled()
             .trackScrollOffset(into: $scrollOffset)
-            .refreshable { await library.refresh() }
+            .refreshable {
+                await library.refresh()
+                Haptics.success()
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
-        // Zoom transition (navigationTransition .zoom) misbehaved in the CI
-        // simulator — the portal snapshot never settled. Standard push for
-        // now; revisit zoom on real hardware.
+        // Zoom restored: the earlier "stuck portal" was actually the detail
+        // backdrop inflating layout (fixed) — the transition was innocent.
         .navigationDestination(for: Game.self) { game in
             GameDetailView(game: game, home: home)
+                .navigationTransition(.zoom(sourceID: game.appID, in: zoom))
         }
     }
 
@@ -79,15 +84,17 @@ struct LibraryView: View {
 
             if let featured {
                 FeaturedCover(game: featured)
+                    .matchedTransitionSource(id: featured.appID, in: zoom)
                     .accessibilityIdentifier("library.cover")
                     .entrance(4)
             }
 
             StaggeredCoverGrid(
                 games: featured.map { hero in filtered.filter { $0.appID != hero.appID } }
-                    ?? filtered
+                    ?? filtered,
+                namespace: zoom
             )
-            .animation(.spring(duration: 0.35), value: filtered.map(\.appID))
+            .animation(.settle, value: filtered.map(\.appID))
         }
     }
 
@@ -95,6 +102,9 @@ struct LibraryView: View {
         let stats = library.stats
         var parts = ["\(stats.totalGames) games"]
         if stats.perfectGames > 0 { parts.append("\(stats.perfectGames) perfect") }
+        if stats.totalPlaytimeMinutes > 0 {
+            parts.append("\(Int(stats.totalHours.rounded()).formatted()) hrs")
+        }
         return Text(parts.joined(separator: " · ")).capsLabel()
     }
 
@@ -239,6 +249,7 @@ private struct FeaturedCover: View {
 /// collage instead of a spreadsheet of thumbnails.
 private struct StaggeredCoverGrid: View {
     let games: [Game]
+    let namespace: Namespace.ID
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -252,12 +263,9 @@ private struct StaggeredCoverGrid: View {
         LazyVStack(spacing: 16) {
             ForEach(games) { game in
                 CoverCard(game: game)
+                    .matchedTransitionSource(id: game.appID, in: namespace)
                     .accessibilityIdentifier("library.cover")
-                    .scrollTransition(.animated(.spring(duration: 0.4))) { content, phase in
-                        content
-                            .opacity(phase.isIdentity ? 1 : 0.7)
-                            .scaleEffect(phase.isIdentity ? 1 : 0.95)
-                    }
+                    .reveal()
             }
         }
     }
@@ -275,34 +283,55 @@ private struct CoverCard: View {
                 Color.clear
                     .aspectRatio(2 / 3, contentMode: .fit)
                     .overlay { RemoteArtView.portrait(for: game) }
-                    .clipped()
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .background {
-                if isPerfect {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .fill(Theme.gold.opacity(0.55))
-                        .blur(radius: 18)
-                        .padding(6)
-                }
-            }
-            .overlay(alignment: .bottomLeading) {
-                badge.offset(x: -6, y: 14)
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(
-                        isPerfect
-                            ? AnyShapeStyle(Theme.goldGradient)
-                            : AnyShapeStyle(Color.white.opacity(0.12)),
-                        lineWidth: isPerfect ? 1.6 : 0.8
+                    .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.art, style: .continuous))
+                    .background {
+                        if isPerfect {
+                            RoundedRectangle(cornerRadius: Tokens.Radius.art, style: .continuous)
+                                .fill(Theme.gold.opacity(0.55))
+                                .blur(radius: 18)
+                                .padding(6)
+                        }
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        badge.offset(x: -6, y: 14)
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Tokens.Radius.art, style: .continuous)
+                            .stroke(
+                                isPerfect
+                                    ? AnyShapeStyle(Theme.goldGradient)
+                                    : AnyShapeStyle(Color.white.opacity(0.12)),
+                                lineWidth: isPerfect ? 1.6 : 0.8
+                            )
                     )
-            )
-            .padding(.bottom, 18)
-            .shadow(color: .black.opacity(0.28), radius: 14, y: 8)
+                    .shadow(color: .black.opacity(0.28), radius: 14, y: 8)
+
+                // Caption clears the overhanging ring badge on the left.
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(game.name)
+                        .font(.footnote.weight(.semibold))
+                        .lineLimit(1)
+                    Text(caption)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .padding(.leading, 52)
+                .padding(.top, 8)
+                .padding(.trailing, 4)
+            }
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilitySummary)
         }
         .buttonStyle(.pressableCard)
+    }
+
+    private var caption: String {
+        var parts = [Format.hours(game.playtimeMinutes)]
+        if let progress, progress.total > 0 {
+            parts.append("\(progress.unlocked)/\(progress.total)")
+        }
+        return parts.joined(separator: " · ")
     }
 
     /// The ring badge overlaps the cover's corner — art stays the hero, the

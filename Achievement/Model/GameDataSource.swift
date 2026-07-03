@@ -16,6 +16,9 @@ protocol GameDataSource: Sendable {
     /// Community genre tags by appID — feeds the profile radar. Cheap after
     /// first fetch (cached permanently).
     func genreTags() async -> [Int: [String]]
+    /// Store-page facts (developer, release date, genres, description) for
+    /// the detail page header. Cached permanently; nil on transient failure.
+    func gameMeta(appID: Int) async -> GameMeta?
     func clearLocalData() async
 }
 
@@ -25,6 +28,7 @@ struct LiveGameDataSource: GameDataSource {
     let player: SteamID
     private let client: SteamWebAPIClient
     private let steamSpy: SteamSpyClient
+    private let store: StoreClient
     private let cache: LibraryCache
     private let syncService: LibrarySyncService
 
@@ -32,6 +36,7 @@ struct LiveGameDataSource: GameDataSource {
         self.player = player
         client = SteamWebAPIClient(apiKey: apiKey)
         steamSpy = SteamSpyClient()
+        store = StoreClient()
         cache = LibraryCache(directory: AppConfig.cacheDirectory)
         syncService = LibrarySyncService(client: client, cache: cache)
     }
@@ -117,6 +122,17 @@ struct LiveGameDataSource: GameDataSource {
         return known
     }
 
+    func gameMeta(appID: Int) async -> GameMeta? {
+        if let cached = await cache.gameMeta(appID: appID) {
+            return cached
+        }
+        guard let meta = try? await store.meta(appID: appID) else {
+            return nil // transient — the next detail visit retries
+        }
+        await cache.storeGameMeta(meta, appID: appID)
+        return meta
+    }
+
     func clearLocalData() async {
         await cache.clear()
     }
@@ -183,6 +199,10 @@ struct DemoGameDataSource: GameDataSource {
 
     func genreTags() async -> [Int: [String]] {
         SampleData.genreTags
+    }
+
+    func gameMeta(appID: Int) async -> GameMeta? {
+        SampleData.gameMeta[appID]
     }
 
     func clearLocalData() async {}

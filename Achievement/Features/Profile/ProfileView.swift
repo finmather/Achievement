@@ -57,9 +57,10 @@ struct ProfileView: View {
 
                     footer.entrance(8)
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Tokens.screenMargin)
                 .padding(.bottom, 40)
             }
+            .scrollClipDisabled()
             .trackScrollOffset(into: $scrollOffset)
         }
         .toolbar(.hidden, for: .navigationBar)

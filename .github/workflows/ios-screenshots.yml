@@ -8,7 +8,7 @@ on:
 jobs:
   build-and-capture:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -18,8 +18,8 @@ jobs:
       - name: Run AchievementCore unit tests
         run: cd AchievementCore && swift test
 
-      - name: Install XcodeGen and xcparse
-        run: brew install xcodegen chargepoint/xcparse/xcparse
+      - name: Install XcodeGen, xcparse, ffmpeg
+        run: brew install xcodegen chargepoint/xcparse/xcparse ffmpeg
 
       - name: Write empty secrets (demo mode needs no API key)
         run: |
@@ -37,8 +37,9 @@ jobs:
           xcrun simctl boot "$DEVICE_ID" || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
 
-      # Dark first — it's the marketing look. The whole dark walk is also
-      # recorded as video for frame-by-frame motion review.
+      # -parallel-testing-enabled NO is load-bearing for the video: by
+      # default xcodebuild runs UI tests on a *cloned* simulator while
+      # recordVideo watches the original — producing a film of an idle phone.
       - name: Screenshot walk (dark, with video)
         run: |
           xcrun simctl ui "$DEVICE_ID" appearance dark
@@ -48,6 +49,7 @@ jobs:
             -project Achievement.xcodeproj \
             -scheme AchievementScreenshots \
             -destination "id=$DEVICE_ID" \
+            -parallel-testing-enabled NO \
             -resultBundlePath Dark.xcresult
 
       - name: Stop video recording
@@ -58,6 +60,22 @@ jobs:
             sleep 4
           fi
 
+      # Playback verification from a machine that can't play mp4s: a tiled
+      # contact sheet + a few full frames, reviewable as images.
+      - name: Extract video frames
+        if: always()
+        run: |
+          mkdir -p video-frames
+          if [ -f walk-dark.mp4 ]; then
+            ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 walk-dark.mp4 | tee video-frames/info.txt
+            ffmpeg -y -loglevel error -i walk-dark.mp4 \
+              -vf "select='not(mod(n\,180))',scale=280:-1,tile=4x6" \
+              -frames:v 1 video-frames/contact-sheet.png
+            ffmpeg -y -loglevel error -i walk-dark.mp4 \
+              -vf "select='eq(n\,240)+eq(n\,900)+eq(n\,1600)',scale=640:-1" \
+              -vsync vfr video-frames/frame-%02d.png
+          fi
+
       - name: Screenshot walk (light)
         run: |
           xcrun simctl ui "$DEVICE_ID" appearance light
@@ -65,14 +83,34 @@ jobs:
             -project Achievement.xcodeproj \
             -scheme AchievementScreenshots \
             -destination "id=$DEVICE_ID" \
+            -parallel-testing-enabled NO \
             -resultBundlePath Light.xcresult
+
+      # Small-screen proof: the same walk on the smallest supported iPhone.
+      - name: Screenshot walk (iPhone SE, dark)
+        run: |
+          SE_ID=$(xcrun simctl list devices available | grep -E "iPhone SE" | head -1 | grep -oE '[0-9A-F-]{36}')
+          if [ -z "$SE_ID" ]; then
+            echo "No iPhone SE simulator on this image — skipping"
+            exit 0
+          fi
+          xcrun simctl boot "$SE_ID" || true
+          xcrun simctl bootstatus "$SE_ID" -b
+          xcrun simctl ui "$SE_ID" appearance dark
+          xcodebuild test \
+            -project Achievement.xcodeproj \
+            -scheme AchievementScreenshots \
+            -destination "id=$SE_ID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath SE.xcresult
 
       - name: Extract screenshots
         if: always()
         run: |
-          mkdir -p screenshots/dark screenshots/light
+          mkdir -p screenshots/dark screenshots/light screenshots/se
           [ -d Dark.xcresult ] && xcparse screenshots Dark.xcresult screenshots/dark || true
           [ -d Light.xcresult ] && xcparse screenshots Light.xcresult screenshots/light || true
+          [ -d SE.xcresult ] && xcparse screenshots SE.xcresult screenshots/se || true
 
       - name: Upload screenshots
         if: always()
@@ -90,6 +128,14 @@ jobs:
           path: walk-dark.mp4
           if-no-files-found: warn
 
+      - name: Upload video frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-frames
+          path: video-frames/
+          if-no-files-found: warn
+
       - name: Upload result bundles
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,4 +144,5 @@ jobs:
           path: |
             Dark.xcresult
             Light.xcresult
+            SE.xcresult
           if-no-files-found: warn

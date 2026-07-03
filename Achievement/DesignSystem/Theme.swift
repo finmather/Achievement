@@ -100,8 +100,19 @@ private struct GlassChip: ViewModifier {
 
     func body(content: Content) -> some View {
         let anyShape = shape.anyShape
+        // Shadow belongs to the flattened material silhouette only. Applying
+        // it after the stroke overlay makes the hairline cast its own shadow
+        // — a dark ring artifact at the corners.
         content
-            .background(.ultraThinMaterial, in: anyShape)
+            .background {
+                anyShape
+                    .fill(.ultraThinMaterial)
+                    .compositingGroup()
+                    .shadow(
+                        color: .black.opacity(scheme == .dark ? 0.32 : 0.09),
+                        radius: 16, y: 8
+                    )
+            }
             .overlay(
                 anyShape.stroke(
                     scheme == .dark
@@ -109,10 +120,6 @@ private struct GlassChip: ViewModifier {
                         : Color.white.opacity(0.6),
                     lineWidth: 0.8
                 )
-            )
-            .shadow(
-                color: .black.opacity(scheme == .dark ? 0.32 : 0.09),
-                radius: 18, y: 9
             )
     }
 }

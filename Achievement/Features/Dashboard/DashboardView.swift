@@ -37,11 +37,15 @@ struct DashboardView: View {
                         loadedContent
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Tokens.screenMargin)
                 .padding(.bottom, 40)
             }
+            .scrollClipDisabled()
             .trackScrollOffset(into: $scrollOffset)
-            .refreshable { await library.refresh() }
+            .refreshable {
+                await library.refresh()
+                Haptics.success()
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -176,6 +180,7 @@ struct FloatingSection<Content: View>: View {
             content()
         }
         .entrance(index)
+        .reveal()
     }
 }
 
@@ -193,40 +198,44 @@ private struct HeroCompletion: View {
     private var fraction: Double { stats.averageCompletion }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 26) {
+        VStack(alignment: .leading, spacing: 18) {
             ZStack(alignment: .leading) {
+                // No interior clip anywhere near the arc: its glow blooms
+                // freely and only the trailing edge runs past the screen
+                // edge, where clipping is invisible by definition.
                 arc
-                    .frame(width: 240, height: 240)
-                    .offset(x: 130, y: -6)
+                    .frame(width: 224, height: 224)
+                    .offset(x: 150)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(Format.percent(fraction))
+                    // Counts up from zero alongside the arc sweep.
+                    Text(Format.percent(swept ? fraction : 0))
                         .heroNumberStyle()
                     Text("Average completion").capsLabel()
+                    Text("\(stats.unlockedAchievements.formatted()) of \(stats.totalAchievements.formatted()) achievements")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
 
                     if case .hydrating(let done, let total) = syncPhase {
                         Text("Importing \(done) of \(total) games")
                             .font(.miniNumber)
                             .foregroundStyle(Theme.accentTeal)
                             .contentTransition(.numericText())
-                            .padding(.top, 8)
+                            .padding(.top, 6)
                     }
                 }
             }
-            // Tall enough for the full arc (240 + glow): only the trailing
-            // edge bleeds off-screen; caps stay visible.
-            .frame(maxWidth: .infinity, minHeight: 258, alignment: .leading)
-            .clipped()
+            .frame(maxWidth: .infinity, minHeight: 232, alignment: .leading)
 
             HStack(spacing: 32) {
-                HeroStat(value: stats.unlockedAchievements.formatted(), label: "Unlocked")
                 HeroStat(value: "\(stats.perfectGames)", label: "Perfect")
                 HeroStat(value: "\(streak.current)", label: "Day streak")
+                HeroStat(value: "\(stats.totalGames)", label: "Games")
             }
         }
-        .padding(.top, 6)
         .onAppear {
-            withAnimation(.spring(duration: 1.2, bounce: 0.16).delay(0.2)) {
+            withAnimation(.sweep.delay(0.2)) {
                 swept = true
             }
         }
@@ -272,6 +281,7 @@ private struct HeroStat: View {
 
 private struct MilestoneCapsule: View {
     let milestone: Milestone
+    @State private var pulsing = false
 
     var body: some View {
         Group {
@@ -334,6 +344,14 @@ private struct MilestoneCapsule: View {
             if let ring {
                 CompletionRing(fraction: ring, lineWidth: 4, animatesOnAppear: false)
                     .frame(width: 30, height: 30)
+                    .scaleEffect(pulsing ? 1.07 : 1)
+                    .onAppear {
+                        withAnimation(
+                            .easeInOut(duration: 1.9).repeatForever(autoreverses: true)
+                        ) {
+                            pulsing = true
+                        }
+                    }
             } else {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
@@ -414,10 +432,11 @@ private struct PerfectCoinShelf: View {
                     .zIndex(Double(games.count - index))
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 8)
+            .padding(.horizontal, Tokens.screenMargin)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, -24)
+        .scrollClipDisabled()
+        .padding(.horizontal, -Tokens.screenMargin)
     }
 }
 
@@ -428,16 +447,26 @@ private struct StreakOrbit: View {
     /// Last seven days, oldest first.
     let activeDays: [Bool]
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: 16) {
-            Image(systemName: "flame.fill")
-                .font(.title3)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Theme.gold, .orange],
-                        startPoint: .top, endPoint: .bottom
+            TimelineView(.animation(minimumInterval: 1 / 12, paused: reduceMotion)) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                Image(systemName: "flame.fill")
+                    .font(.title3)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Theme.gold, .orange],
+                            startPoint: .top, endPoint: .bottom
+                        )
                     )
-                )
+                    // A candle-quiet flicker, not a bonfire.
+                    .scaleEffect(
+                        reduceMotion ? 1 : 1 + 0.035 * sin(t * 6.3) * sin(t * 2.9),
+                        anchor: .bottom
+                    )
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("\(streak.current)-day streak")
@@ -505,10 +534,11 @@ private struct RecentPlayRail: View {
                     .buttonStyle(.pressable)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 6)
+            .padding(.horizontal, Tokens.screenMargin)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, -24)
+        .scrollClipDisabled()
+        .padding(.horizontal, -Tokens.screenMargin)
     }
 }
 
@@ -530,10 +560,11 @@ private struct RecentUnlockRail: View {
                     }
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 4)
+            .padding(.horizontal, Tokens.screenMargin)
+            .padding(.vertical, 10)
         }
-        .padding(.horizontal, -24)
+        .scrollClipDisabled()
+        .padding(.horizontal, -Tokens.screenMargin)
     }
 }
 
@@ -569,9 +600,13 @@ struct AchievementIcon: View {
                 ? achievement.iconURL
                 : (achievement.lockedIconURL ?? achievement.iconURL) {
                 AsyncImage(url: url) { phase in
-                    if case .success(let image) = phase {
+                    switch phase {
+                    case .success(let image):
                         image.resizable().scaledToFill()
-                    } else {
+                    case .empty:
+                        // Real Steam icon inbound — breathe while it loads.
+                        fallback.breathing()
+                    default:
                         fallback
                     }
                 }

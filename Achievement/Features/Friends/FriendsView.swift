@@ -26,9 +26,10 @@ struct FriendsView: View {
 
                     content
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Tokens.screenMargin)
                 .padding(.bottom, 40)
             }
+            .scrollClipDisabled()
             .trackScrollOffset(into: $scrollOffset)
             .refreshable { await friends.loadIfNeeded() }
         }

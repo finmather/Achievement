@@ -24,6 +24,22 @@ final class HomeModel: Identifiable {
         _ = await (profileTask, libraryTask)
     }
 
+    /// Friends who own a given game — powers the detail page's social row.
+    /// Demo mode computes it directly; live mode returns empty rather than
+    /// issuing one owned-games call per friend per visit (a server proxy is
+    /// the v2 answer).
+    func friendsOwning(_ appID: Int) async -> [PlayerProfile] {
+        guard isDemo else { return [] }
+        var owners: [PlayerProfile] = []
+        for friend in friends.friends {
+            let games = (try? await dataSource.friendGames(friendID: friend.id)) ?? []
+            if games.contains(where: { $0.appID == appID }) {
+                owners.append(friend)
+            }
+        }
+        return owners
+    }
+
     private func loadProfile() async {
         profile = try? await dataSource.profile()
     }

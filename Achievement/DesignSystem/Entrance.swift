@@ -29,4 +29,17 @@ extension View {
     func entrance(_ index: Int) -> some View {
         modifier(EntranceModifier(index: index))
     }
+
+    /// Progressive reveal *while scrolling*: content fades and rises as it
+    /// enters the viewport from below. The scroll-driven sibling of
+    /// `entrance` — use this inside scrolling bodies, entrance only for
+    /// non-scrolling screens (onboarding, celebration).
+    func reveal() -> some View {
+        scrollTransition(.animated(.settle), axis: .vertical) { content, phase in
+            content
+                .opacity(phase == .bottomTrailing ? 0 : 1)
+                .offset(y: phase == .bottomTrailing ? 20 : 0)
+                .scaleEffect(phase == .bottomTrailing ? 0.97 : 1)
+        }
+    }
 }

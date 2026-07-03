@@ -45,9 +45,10 @@ struct FriendCompareView: View {
                         .accessibilityLabel("Loading comparison")
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Tokens.screenMargin)
                 .padding(.bottom, 40)
             }
+            .scrollClipDisabled()
             .trackScrollOffset(into: $scrollOffset)
         }
         .navigationBarTitleDisplayMode(.inline)
