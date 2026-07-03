@@ -54,6 +54,12 @@ final class AppModel {
 
     func restoreSession() {
         guard case .restoring = session else { return }
+        // CI screenshot/UI-test entry point — skips onboarding entirely so
+        // automation never has to simulate tapping through sign-in.
+        if ProcessInfo.processInfo.environment["UI_TEST_DEMO_MODE"] == "1" {
+            session = .active(HomeModel(dataSource: DemoGameDataSource(), isDemo: true))
+            return
+        }
         if UserDefaults.standard.bool(forKey: Self.demoModeKey) {
             session = .active(HomeModel(dataSource: DemoGameDataSource(), isDemo: true))
         } else if let raw = KeychainStore.string(for: Self.steamIDKey),

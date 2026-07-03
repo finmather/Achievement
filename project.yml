@@ -46,6 +46,17 @@ targets:
         # Injected from Config/Secrets.xcconfig at build time.
         SteamAPIKey: $(STEAM_API_KEY)
 
+  AchievementUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - AchievementUITests
+    dependencies:
+      - target: Achievement
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+
 schemes:
   Achievement:
     build:
@@ -57,3 +68,16 @@ schemes:
       config: Debug
       targets:
         - package: AchievementCore/AchievementCoreTests
+
+  # Walks every screen in demo mode and attaches a screenshot of each —
+  # used by CI (see .github/workflows/ios-screenshots.yml) since this
+  # project is authored on Windows and has no local simulator to preview in.
+  AchievementScreenshots:
+    build:
+      targets:
+        Achievement: all
+        AchievementUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - AchievementUITests
