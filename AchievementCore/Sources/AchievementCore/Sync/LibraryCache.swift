@@ -54,6 +54,17 @@ public actor LibraryCache {
         save(achievements, achievementsName(appID))
     }
 
+    /// Store-page metadata (developers, release date…). Immutable in
+    /// practice, cached forever; an empty GameMeta is a valid "nothing
+    /// available" answer that prevents refetching.
+    public func gameMeta(appID: Int) -> GameMeta? {
+        load(GameMeta.self, "meta-\(appID).json")
+    }
+
+    public func storeGameMeta(_ meta: GameMeta, appID: Int) {
+        save(meta, "meta-\(appID).json")
+    }
+
     /// Community genre tags by appID. JSON dictionaries need string keys,
     /// hence the conversion.
     public func genreTags() -> [Int: [String]]? {

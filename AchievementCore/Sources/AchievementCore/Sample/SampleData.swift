@@ -140,6 +140,67 @@ public enum SampleData {
         ]
     }
 
+    /// Real store-page facts for the demo library, so the detail page's
+    /// companion-guide header is fully populated without a network.
+    public static var gameMeta: [Int: GameMeta] {
+        func meta(
+            _ dev: String, _ pub: String, _ date: String,
+            _ genres: [String], _ blurb: String
+        ) -> GameMeta {
+            GameMeta(
+                developers: [dev], publishers: [pub], releaseDate: date,
+                genres: genres, shortDescription: blurb
+            )
+        }
+        return [
+            1145360: meta("Supergiant Games", "Supergiant Games", "17 Sep, 2020",
+                          ["Action", "Indie", "RPG"],
+                          "Defy the god of the dead in a rogue-like dungeon crawler from the creators of Bastion."),
+            1245620: meta("FromSoftware", "Bandai Namco", "24 Feb, 2022",
+                          ["Action", "RPG"],
+                          "Rise, Tarnished — a vast realm of peril and discovery awaits in the Lands Between."),
+            413150: meta("ConcernedApe", "ConcernedApe", "26 Feb, 2016",
+                         ["Indie", "RPG", "Simulation"],
+                         "Inherit your grandfather's old farm plot and turn overgrown fields into a thriving home."),
+            620: meta("Valve", "Valve", "18 Apr, 2011",
+                      ["Action", "Adventure"],
+                      "Break the laws of spatial physics with the incremental puzzle-solving of the portal gun."),
+            367520: meta("Team Cherry", "Team Cherry", "24 Feb, 2017",
+                         ["Action", "Adventure", "Indie"],
+                         "Forge your own path through a vast, ruined kingdom of insects and heroes."),
+            504230: meta("Maddy Makes Games", "Maddy Makes Games", "25 Jan, 2018",
+                         ["Action", "Indie"],
+                         "Help Madeline survive her inner demons on her journey to the top of Celeste Mountain."),
+            1794680: meta("poncle", "poncle", "20 Oct, 2022",
+                          ["Action", "Casual", "Indie", "RPG"],
+                          "Mow down thousands of night creatures and survive until dawn."),
+            646570: meta("MegaCrit", "Humble Games", "23 Jan, 2019",
+                         ["Indie", "Strategy"],
+                         "Craft a unique deck, encounter bizarre creatures, and slay the spire."),
+            588650: meta("Motion Twin", "Motion Twin", "7 Aug, 2018",
+                         ["Action", "Indie"],
+                         "Rogue-lite, metroidvania-inspired action platforming through an ever-changing castle."),
+            753640: meta("Mobius Digital", "Annapurna Interactive", "18 Jun, 2020",
+                         ["Action", "Adventure"],
+                         "A solar system trapped in an endless time loop — and you're the only one who remembers."),
+            268910: meta("Studio MDHR", "Studio MDHR", "29 Sep, 2017",
+                         ["Action", "Indie"],
+                         "Run-and-gun through surreal 1930s-cartoon worlds, one boss at a time."),
+            105600: meta("Re-Logic", "Re-Logic", "16 May, 2011",
+                         ["Action", "Adventure", "Indie", "RPG"],
+                         "Dig, fight, explore, build — the very world is at your fingertips."),
+            264710: meta("Unknown Worlds", "Unknown Worlds", "23 Jan, 2018",
+                         ["Adventure", "Indie"],
+                         "Descend into the depths of an alien underwater world full of wonder and peril."),
+            220: meta("Valve", "Valve", "16 Nov, 2004",
+                      ["Action"],
+                      "The award-winning saga continues as Gordon Freeman returns to City 17."),
+            1057090: meta("Moon Studios", "Xbox Game Studios", "11 Mar, 2020",
+                          ["Action", "Adventure"],
+                          "Embark on an all-new adventure in a vast world full of new friends and foes."),
+        ]
+    }
+
     // MARK: - Friends
 
     public static var friends: [PlayerProfile] {
