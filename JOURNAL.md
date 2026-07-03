@@ -187,3 +187,42 @@ uploads screenshots + motion video as artifacts. The review discipline:
 pull artifacts, inspect stills for spacing/alignment/template-smell, watch
 the video for animation timing, fix, push again. First pass is a draft by
 definition — polish iterations expected and planned.
+
+---
+
+## 2026-07-03 — Aurora verified: six CI review cycles to green
+
+All 20 captures (10 screens × dark/light) now render as designed —
+dashboard hero, cover wall, immersive detail, duel bars, radar passport,
+celebration, empty states, both appearances. It took six push→capture→
+review cycles; findings worth remembering:
+
+1. **The big lesson — remote images must never participate in layout.**
+   Steam art carries native ideal sizes (3840pt wide). Two separate bugs
+   came from letting it touch layout: `aspectRatio(_:contentMode:)` applied
+   directly to a resizable fill image in an unbounded-height scroll, and —
+   far nastier — `scaledToFill()` on backdrop art placed as a ZStack
+   sibling, which inflated the *entire screen's layout* to ~3800pt wide.
+   The phone rendered the horizontal center slice: covers looked exploded
+   and unclipped while titles and text sat thousands of points off-screen
+   (three CI cycles chased "invisible content" that was simply elsewhere).
+   Rule now enforced everywhere: neutral views (`Color.clear` + frames)
+   define size, art lives in `.overlay`, backdrops attach as `.background`
+   (which structurally cannot inflate the host).
+2. **`cos(CGFloat)` is ambiguous** under Double↔CGFloat implicit
+   conversion — radar trig now runs in Double and converts at the CGPoint
+   boundary.
+3. **XCUITest terminate-and-relaunch flakes** on actively-animating apps —
+   the walk is one test with one launch (celebration captured first via
+   launch env), never relaunching mid-suite.
+4. **iOS 18 zoom navigationTransition removed** while debugging (was
+   probably innocent — the backdrop was the culprit). Two-line restore;
+   revalidate on real hardware later.
+5. Casualties of review, fixed: hero arc clipped flat (block now reserves
+   its height), generated avatar hues constrained to the aurora band,
+   duplicate "Clear search" accessibility labels.
+
+Remaining polish candidates (non-blocking, noted from final review): a
+faint clip edge where the dashboard arc's glow meets its bounds in light
+mode; motion video review pending (artifact uploads fine — needs a viewer);
+zoom transition restore.
