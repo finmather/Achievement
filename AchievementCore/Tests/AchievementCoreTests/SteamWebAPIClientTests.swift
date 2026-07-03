@@ -1,5 +1,8 @@
 import XCTest
 @testable import AchievementCore
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // Canned Steam responses. Kept as raw fixtures so decoding is tested against
 // the wire shape, quirks included (IDs as strings, percent as string).

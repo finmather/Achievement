@@ -18,6 +18,24 @@ project.yml             XcodeGen spec — generates Achievement.xcodeproj
 Config/                 Build configuration (Steam API key lives here, gitignored)
 ```
 
+## Testing the core on Windows
+
+The `AchievementCore` package (all business logic, ~69 tests) runs on Windows
+with the official Swift toolchain — verified on this machine with Swift 6.3.2:
+
+```powershell
+winget install --id Swift.Toolchain -e
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override `
+  "--quiet --wait --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
+
+cd AchievementCore
+swift test --scratch-path "$env:LOCALAPPDATA\AchievementCoreBuild"
+```
+
+The `--scratch-path` keeps build artifacts out of OneDrive, whose file
+locking races SwiftPM's symlink creation. The SwiftUI app target still
+requires a Mac.
+
 ## Getting started (on a Mac)
 
 This project was authored on Windows, so the first Mac session should verify

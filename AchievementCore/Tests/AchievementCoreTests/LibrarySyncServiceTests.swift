@@ -1,5 +1,8 @@
 import XCTest
 @testable import AchievementCore
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 private let player = SteamID(rawValue: 76_561_197_984_231_774)!
 

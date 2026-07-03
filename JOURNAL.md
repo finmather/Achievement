@@ -114,3 +114,33 @@ review pass caught and fixed two UI bugs before first compile: the welcome
 screen's error alert used a `.constant` binding (would re-present forever
 after OK), and library cards lacked a `.clipped()` for the landscape-header
 artwork fallback (460×215 filling a 2:3 slot would bleed over the card).
+
+---
+
+## 2026-07-03 — Core verified on Windows: 69/69 tests pass
+
+"Not yet compiled" is no longer true. Installed the official Swift 6.3.2
+Windows toolchain via winget (plus VS 2022 Build Tools with only the MSVC
+v143 + Windows 11 SDK components — the toolchain's one unbundleable
+prerequisite), and ran the full `AchievementCore` suite on this machine:
+
+**69 tests, 0 failures, 0 warnings, in 0.3s.**
+
+Findings from the first real compile:
+- **One genuine bug**: `SteamOpenID.swift` (and three test files) used
+  `URLRequest` without the `#if canImport(FoundationNetworking)` guard that
+  the networking files already had. On non-Apple platforms `URLRequest`
+  lives in FoundationNetworking. Fixed everywhere.
+- **One async-safety warning**: the test `MockHTTPClient` called
+  `NSLock.lock()` directly inside an async function; extracted a synchronous
+  `record(_:)` helper (locks must never span suspension points anyway).
+- **OneDrive gotcha**: SwiftPM's `.build` symlink creation intermittently
+  fails inside OneDrive-synced folders (I/O error 512, exit 255 *after* all
+  tests pass). Fix: `swift test --scratch-path "$env:LOCALAPPDATA\..."` —
+  documented in README.
+- The strict-concurrency worries from the previous entry didn't materialize:
+  `LibrarySyncService`'s task-group pattern and the client's `async let`
+  merge compiled clean under the Swift 6.3 compiler in language mode 5.
+
+**Still Mac-only:** the SwiftUI app target (screens, animations, gestures,
+simulator walk). Everything below the UI is now compiler- and test-verified.

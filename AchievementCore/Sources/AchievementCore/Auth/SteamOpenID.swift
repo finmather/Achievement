@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Pure helpers for Steam's OpenID 2.0 sign-in flow — URL construction,
 /// callback parsing, and building the `check_authentication` verification

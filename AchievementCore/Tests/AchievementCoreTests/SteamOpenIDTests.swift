@@ -1,5 +1,8 @@
 import XCTest
 @testable import AchievementCore
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 final class SteamOpenIDTests: XCTestCase {
     private let returnTo = URL(string: "https://achievement.app/auth/steam")!

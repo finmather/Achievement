@@ -51,10 +51,16 @@ final class MockHTTPClient: HTTPClient, @unchecked Sendable {
         return _requests
     }
 
-    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    // Kept synchronous: NSLock must not be held across suspension points,
+    // and Swift flags direct lock()/unlock() inside async functions.
+    private func record(_ request: URLRequest) {
         lock.lock()
+        defer { lock.unlock() }
         _requests.append(request)
-        lock.unlock()
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        record(request)
         let (data, status) = try handler(request)
         let response = HTTPURLResponse(
             url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil
