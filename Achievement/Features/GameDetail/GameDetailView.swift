@@ -19,37 +19,38 @@ struct GameDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            BackdropArt(game: currentGame)
+        // The backdrop is a .background, never a ZStack sibling: its remote
+        // art has a native ideal size in the thousands of points, and as a
+        // sibling it inflates the ZStack (and everything in it) to match.
+        // A background is always exactly the size of its host.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                FloatingCover(game: currentGame)
+                    .entrance(0)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    FloatingCover(game: currentGame)
-                        .entrance(0)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(currentGame.name)
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.7)
-                        Text(playSummary).capsLabel()
-                    }
-                    .entrance(1)
-
-                    if currentGame.isPerfect {
-                        PerfectRibbon().entrance(2)
-                    }
-
-                    if let nextUp {
-                        NextUpSpotlight(achievement: nextUp).entrance(2)
-                    }
-
-                    achievementsSection
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(currentGame.name)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                    Text(playSummary).capsLabel()
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
+                .entrance(1)
+
+                if currentGame.isPerfect {
+                    PerfectRibbon().entrance(2)
+                }
+
+                if let nextUp {
+                    NextUpSpotlight(achievement: nextUp).entrance(2)
+                }
+
+                achievementsSection
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 40)
         }
+        .background { BackdropArt(game: currentGame) }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { await loadAchievements() }
@@ -147,6 +148,10 @@ struct GameDetailView: View {
 
 /// The cover art, blurred into a full-screen atmosphere with a scrim that
 /// keeps text legible in both color schemes.
+///
+/// Layout discipline: the art only ever lives inside an `.overlay` of a
+/// size-neutral view — remote images carry native ideal sizes in the
+/// thousands of points and must never participate in layout.
 private struct BackdropArt: View {
     let game: Game
     @Environment(\.colorScheme) private var scheme
@@ -155,10 +160,12 @@ private struct BackdropArt: View {
         ZStack {
             AuroraBackground()
 
-            RemoteArtView.wide(for: game)
-                .scaledToFill()
-                .scaleEffect(1.4)
-                .blur(radius: 42, opaque: true)
+            Color.clear
+                .overlay {
+                    RemoteArtView.wide(for: game)
+                        .blur(radius: 42, opaque: true)
+                }
+                .clipped()
                 .opacity(scheme == .dark ? 0.55 : 0.4)
                 .overlay {
                     LinearGradient(
@@ -168,9 +175,9 @@ private struct BackdropArt: View {
                         startPoint: .top, endPoint: .bottom
                     )
                 }
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
         }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
 
@@ -179,11 +186,12 @@ private struct FloatingCover: View {
     let game: Game
 
     var body: some View {
-        // Fixed height + fill + clip: fully deterministic sizing, immune to
-        // aspect-ratio proposal quirks in unbounded scroll contexts.
-        RemoteArtView.wide(for: game)
+        // Size comes from the neutral Color.clear; the art is overlay-only
+        // and can never leak its native ideal size into layout.
+        Color.clear
             .frame(height: 200)
             .frame(maxWidth: .infinity)
+            .overlay { RemoteArtView.wide(for: game) }
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
