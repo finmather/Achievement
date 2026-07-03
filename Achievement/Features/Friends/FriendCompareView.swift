@@ -1,11 +1,12 @@
 import SwiftUI
 import AchievementCore
 
-/// Head-to-head with a friend. Tone is deliberately friendly: balanced
-/// layout, soft "leads" language, no losers.
+/// Head-to-head, kept friendly: overlapping avatars, organic duel bars with
+/// a glow on whoever leads, and warm language — rivals, never losers.
 struct FriendCompareView: View {
     let home: HomeModel
     @State private var model: ComparisonModel
+    @State private var scrollOffset: CGFloat = 0
 
     init(friend: PlayerProfile, home: HomeModel) {
         self.home = home
@@ -18,56 +19,64 @@ struct FriendCompareView: View {
 
     var body: some View {
         ZStack {
-            ScreenBackground()
+            AuroraBackground(intensity: .hero, scrollOffset: scrollOffset)
 
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     VersusHeader(me: home.profile, friend: model.friend)
+                        .frame(maxWidth: .infinity)
+                        .entrance(0)
 
                     if let comparison = model.comparison {
                         loadedContent(comparison)
                     } else if let error = model.errorMessage {
-                        ContentUnavailableView {
-                            Label("Can't Compare", systemImage: "person.2.slash")
-                        } description: {
-                            Text(error)
-                        }
-                        .padding(.top, 20)
+                        EmptyStateView(
+                            motif: .lock,
+                            title: "Can't compare",
+                            message: error
+                        )
                     } else {
-                        CompareSkeleton()
+                        VStack(spacing: 16) {
+                            ForEach(0..<4, id: \.self) { _ in
+                                BreathingPlaceholder(shape: .capsule)
+                                    .frame(height: 40)
+                            }
+                        }
+                        .accessibilityLabel("Loading comparison")
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
             }
+            .trackScrollOffset(into: $scrollOffset)
         }
-        .navigationTitle("Compare")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task { await model.load() }
     }
 
     @ViewBuilder
     private func loadedContent(_ comparison: FriendComparison) -> some View {
-        VStack(spacing: 16) {
-            DuelRow(
+        VStack(spacing: 22) {
+            DuelBar(
                 label: "Perfect games",
                 mine: Double(comparison.myStats.perfectGames),
                 theirs: Double(comparison.friendStats.perfectGames),
                 display: { "\(Int($0))" }
             )
-            DuelRow(
+            DuelBar(
                 label: "Achievements",
                 mine: Double(comparison.myStats.unlockedAchievements),
                 theirs: Double(comparison.friendStats.unlockedAchievements),
                 display: { Int($0).formatted() }
             )
-            DuelRow(
+            DuelBar(
                 label: "Average completion",
                 mine: comparison.myStats.averageCompletion,
                 theirs: comparison.friendStats.averageCompletion,
                 display: { Format.percent($0) }
             )
-            DuelRow(
+            DuelBar(
                 label: "Hours played",
                 mine: comparison.myStats.totalHours,
                 theirs: comparison.friendStats.totalHours,
@@ -75,36 +84,39 @@ struct FriendCompareView: View {
             )
         }
         .padding(20)
-        .cardSurface()
+        .glassChip(.blob(32))
+        .entrance(1)
 
         let headToHead = model.headToHead
         if headToHead.decided > 0 {
-            HeadToHeadChip(
+            Scoreboard(
                 friendName: model.friend.personaName,
                 mine: headToHead.mine,
                 theirs: headToHead.theirs,
                 decided: headToHead.decided
             )
+            .frame(maxWidth: .infinity)
+            .entrance(2)
         }
 
-        if !model.sharedGames.isEmpty {
-            SectionHeader("Shared Games")
-            VStack(spacing: 10) {
-                ForEach(model.sharedGames) { shared in
-                    SharedGameRow(
-                        shared: shared,
-                        friendName: model.friend.personaName,
-                        awaitingFriendData: model.isHydratingShared && shared.theirs == nil
-                    )
+        if model.sharedGames.isEmpty {
+            EmptyStateView(
+                motif: .controller,
+                title: "No shared shelf",
+                message: "You and \(model.friend.personaName) don't own the same games yet. First one to gift the other wins."
+            )
+        } else {
+            FloatingSection(title: "Shared games", index: 3) {
+                VStack(spacing: 12) {
+                    ForEach(model.sharedGames) { shared in
+                        SharedGameRow(
+                            shared: shared,
+                            friendName: model.friend.personaName,
+                            awaitingFriendData: model.isHydratingShared && shared.theirs == nil
+                        )
+                    }
                 }
             }
-        } else {
-            ContentUnavailableView(
-                "No Shared Games",
-                systemImage: "square.stack",
-                description: Text("You and \(model.friend.personaName) don't own any of the same games yet.")
-            )
-            .padding(.top, 8)
         }
     }
 }
@@ -116,32 +128,34 @@ private struct VersusHeader: View {
     let friend: PlayerProfile
 
     var body: some View {
-        HStack(spacing: 24) {
-            VStack(spacing: 8) {
+        VStack(spacing: 12) {
+            HStack(spacing: -16) {
                 if let me {
-                    AvatarView(profile: me, size: 64)
+                    AvatarView(profile: me, size: 74)
+                        .zIndex(1)
                 }
-                Text("You").font(.caption.weight(.semibold))
+                AvatarView(profile: friend, size: 74)
             }
-            Text("vs")
-                .font(.system(size: 17, weight: .medium, design: .rounded))
-                .foregroundStyle(.tertiary)
-            VStack(spacing: 8) {
-                AvatarView(profile: friend, size: 64)
+            HStack(spacing: 6) {
+                Text("You")
+                    .font(.footnote.weight(.semibold))
+                Text("vs")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
                 Text(friend.personaName)
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .lineLimit(1)
             }
         }
-        .padding(.top, 8)
+        .padding(.top, 6)
     }
 }
 
-// MARK: - Duel rows
+// MARK: - Duel bar
 
-/// One stat, two people: numbers on the outside, a split bar between them.
-/// The bar animates to its proportion; the stronger side reads instantly.
-private struct DuelRow: View {
+/// Numbers on the outside, one continuous capsule between them split by
+/// proportion. The leading side glows softly; a dead heat glows nowhere.
+private struct DuelBar: View {
     let label: String
     let mine: Double
     let theirs: Double
@@ -156,32 +170,40 @@ private struct DuelRow: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             HStack {
                 Text(display(mine))
                     .font(.miniNumber)
-                    .foregroundStyle(mine >= theirs ? Theme.accent : .secondary)
+                    .foregroundStyle(mine >= theirs && mine > 0 ? Theme.accent : .secondary)
                 Spacer()
-                Text(label).statLabelStyle()
+                Text(label).capsLabel()
                 Spacer()
                 Text(display(theirs))
                     .font(.miniNumber)
-                    .foregroundStyle(theirs > mine ? Theme.accent : .secondary)
+                    .foregroundStyle(theirs > mine ? Theme.accentTeal : .secondary)
             }
 
             GeometryReader { proxy in
                 HStack(spacing: 3) {
                     Capsule()
                         .fill(Theme.accent)
-                        .frame(width: max(6, proxy.size.width * (animated ? mineFraction : 0.5)))
+                        .frame(width: max(8, proxy.size.width * (animated ? mineFraction : 0.5)))
+                        .shadow(
+                            color: Theme.accent.opacity(mine > theirs ? 0.65 : 0),
+                            radius: 6
+                        )
                     Capsule()
-                        .fill(.quaternary)
+                        .fill(Theme.accentTeal.opacity(0.75))
+                        .shadow(
+                            color: Theme.accentTeal.opacity(theirs > mine ? 0.65 : 0),
+                            radius: 6
+                        )
                 }
             }
-            .frame(height: 6)
+            .frame(height: 7)
         }
         .onAppear {
-            withAnimation(.spring(duration: 0.9, bounce: 0.15).delay(0.1)) {
+            withAnimation(.spring(duration: 0.9, bounce: 0.15).delay(0.15)) {
                 animated = true
             }
         }
@@ -191,26 +213,31 @@ private struct DuelRow: View {
     }
 }
 
-private struct HeadToHeadChip: View {
+private struct Scoreboard: View {
     let friendName: String
     let mine: Int
     let theirs: Int
     let decided: Int
 
     var body: some View {
-        Label(summary, systemImage: "flag.checkered")
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Capsule().fill(.quaternary.opacity(0.5)))
+        HStack(spacing: 12) {
+            Image(systemName: "flag.checkered")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text(summary)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
+        .glassChip()
     }
 
     private var summary: String {
         if mine > theirs {
             return "You lead in \(mine) of \(decided) shared games"
         } else if theirs > mine {
-            return "\(friendName) leads in \(theirs) of \(decided) shared games"
+            return "\(friendName) leads in \(theirs) of \(decided)"
         }
         return "Dead even across \(decided) shared games"
     }
@@ -226,31 +253,24 @@ private struct SharedGameRow: View {
     var body: some View {
         HStack(spacing: 14) {
             RemoteArtView.icon(for: shared.game)
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 46, height: 46)
+                .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(shared.game.name)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
 
-                ProgressLine(
-                    label: "You",
-                    progress: shared.mine,
-                    tint: Theme.accent,
-                    pending: false
-                )
-                ProgressLine(
-                    label: friendName,
-                    progress: shared.theirs,
-                    tint: Color(red: 0.18, green: 0.76, blue: 0.78),
-                    pending: awaitingFriendData
-                )
+                ProgressLine(label: "You", progress: shared.mine,
+                             tint: Theme.accent, pending: false)
+                ProgressLine(label: friendName, progress: shared.theirs,
+                             tint: Theme.accentTeal, pending: awaitingFriendData)
             }
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(cornerRadius: 18)
+        .glassChip(.blob(28))
     }
 }
 
@@ -265,26 +285,33 @@ private struct ProgressLine: View {
             Text(label)
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
-                .frame(width: 58, alignment: .leading)
+                .frame(width: 56, alignment: .leading)
                 .lineLimit(1)
 
             if let progress, progress.total > 0 {
-                ProgressView(value: progress.fraction)
-                    .tint(tint)
+                Capsule()
+                    .fill(.quaternary)
+                    .frame(height: 5)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Capsule()
+                                .fill(tint)
+                                .frame(width: max(5, proxy.size.width * progress.fraction))
+                        }
+                    }
                 Text("\(progress.unlocked)/\(progress.total)")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 52, alignment: .trailing)
                     .contentTransition(.numericText())
             } else if pending {
-                ProgressView(value: 0).tint(.clear)
-                    .overlay(Capsule().fill(.quaternary).frame(height: 4).shimmering())
+                Capsule().fill(.quaternary).frame(height: 5).breathing()
                 Text("…")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .frame(width: 52, alignment: .trailing)
             } else {
-                ProgressView(value: 0)
+                Capsule().fill(.quaternary.opacity(0.5)).frame(height: 5)
                 Text("—")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -292,22 +319,5 @@ private struct ProgressLine: View {
             }
         }
         .animation(.spring(duration: 0.5), value: progress)
-    }
-}
-
-private struct CompareSkeleton: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.quaternary)
-                .frame(height: 220)
-            ForEach(0..<3, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.quaternary)
-                    .frame(height: 88)
-            }
-        }
-        .shimmering()
-        .accessibilityLabel("Loading comparison")
     }
 }

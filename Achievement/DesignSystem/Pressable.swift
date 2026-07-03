@@ -8,8 +8,8 @@ struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? pressedScale : 1)
-            .opacity(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(duration: 0.32, bounce: 0.35), value: configuration.isPressed)
+            .brightness(configuration.isPressed ? -0.04 : 0)
+            .animation(.spring(duration: 0.3, bounce: 0.45), value: configuration.isPressed)
             .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: configuration.isPressed) { old, new in
                 !old && new
             }

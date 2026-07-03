@@ -5,24 +5,37 @@ struct WelcomeView: View {
     @State private var showingSignIn = false
     @State private var isVerifying = false
 
+    @State private var markBreathes = false
+
     var body: some View {
         ZStack {
-            ScreenBackground()
+            AuroraBackground(intensity: .hero)
 
             VStack(spacing: 0) {
                 Spacer(minLength: 48)
 
                 AppMark()
+                    .scaleEffect(markBreathes ? 1.04 : 1)
+                    .onAppear {
+                        withAnimation(
+                            .easeInOut(duration: 2.6).repeatForever(autoreverses: true)
+                        ) {
+                            markBreathes = true
+                        }
+                    }
                     .padding(.bottom, 24)
+                    .entrance(0)
 
                 Text("Achievement")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .entrance(1)
 
                 Text("Your Steam library, beautifully completed.")
                     .font(.headline)
                     .fontWeight(.regular)
                     .foregroundStyle(.secondary)
                     .padding(.top, 6)
+                    .entrance(2)
 
                 Spacer(minLength: 32)
 
@@ -33,18 +46,21 @@ struct WelcomeView: View {
                         title: "Every game, one ring",
                         detail: "Your whole library with live completion progress."
                     )
+                    .entrance(3)
                     FeatureRow(
                         symbol: "sparkles",
                         tint: Theme.gold,
                         title: "Celebrate the rare ones",
                         detail: "Rarity, streaks and perfect games, made satisfying."
                     )
+                    .entrance(4)
                     FeatureRow(
                         symbol: "person.2",
-                        tint: Color(red: 0.18, green: 0.76, blue: 0.78),
+                        tint: Theme.accentTeal,
                         title: "Friendly rivalries",
                         detail: "Compare progress with friends, game by game."
                     )
+                    .entrance(5)
                 }
                 .padding(.horizontal, 36)
 
@@ -59,18 +75,12 @@ struct WelcomeView: View {
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(
-                                Capsule().fill(
-                                    LinearGradient(
-                                        colors: [Theme.accent,
-                                                 Color(red: 0.28, green: 0.34, blue: 0.86)],
-                                        startPoint: .top, endPoint: .bottom
-                                    )
-                                )
-                            )
+                            .background(Capsule().fill(Theme.accentDuotone))
+                            .shadow(color: Theme.accent.opacity(0.4), radius: 16, y: 8)
                     }
                     .buttonStyle(.pressable)
                     .disabled(isVerifying)
+                    .entrance(6)
 
                     Button("Explore the demo") {
                         model.startDemo()
@@ -151,7 +161,7 @@ private struct VerifyingOverlay: View {
                     .foregroundStyle(.secondary)
             }
             .padding(28)
-            .cardSurface()
+            .glassChip(.blob(28))
         }
         .transition(.opacity)
     }

@@ -2,41 +2,67 @@ import SwiftUI
 import Charts
 import AchievementCore
 
+/// The gaming passport: an animated identity header with passport-stamp
+/// seals, the genre radar (the app's signature), editorial habit lines, a
+/// year summary, an organic unlock-history chart, and the rarity gems.
 struct ProfileView: View {
     @Environment(AppModel.self) private var appModel
     let home: HomeModel
 
     @State private var confirmingSignOut = false
+    @State private var scrollOffset: CGFloat = 0
 
     private var library: LibraryStore { home.library }
 
     var body: some View {
         ZStack {
-            ScreenBackground()
+            AuroraBackground(intensity: .hero, scrollOffset: scrollOffset)
 
             ScrollView {
-                VStack(spacing: 20) {
-                    IdentityCard(profile: home.profile, isDemo: home.isDemo)
+                VStack(alignment: .leading, spacing: 30) {
+                    IdentityHeader(profile: home.profile, isDemo: home.isDemo)
+                        .frame(maxWidth: .infinity)
+                        .entrance(0)
 
-                    statsGrid
+                    StampRow(stats: library.stats, profile: home.profile)
+                        .entrance(1)
 
-                    if !library.unlocks.isEmpty {
-                        UnlockHistoryCard(unlocks: library.unlocks)
-                        RarityCollectionCard(unlocks: library.unlocks)
+                    FloatingSection(title: "Your shape", index: 2) {
+                        GenreRadarView(profile: library.genreProfile)
                     }
 
-                    signOutButton
+                    editorialStats.entrance(3)
 
-                    Text("Game data provided by Steam. Not affiliated with Valve.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 4)
+                    if library.habits != .empty {
+                        FloatingSection(title: "Habits", index: 4) {
+                            HabitLines(habits: library.habits)
+                        }
+                    }
+
+                    if library.yearSummary.unlockCount > 0 {
+                        FloatingSection(title: "\(library.yearSummary.year) so far", index: 5) {
+                            YearSummaryCapsule(summary: library.yearSummary)
+                        }
+                    }
+
+                    if !library.unlocks.isEmpty {
+                        FloatingSection(title: "Unlock history", index: 6) {
+                            HistoryChart(unlocks: library.unlocks)
+                        }
+
+                        FloatingSection(title: "Rarity collection", index: 7) {
+                            RarityGems(unlocks: library.unlocks)
+                        }
+                    }
+
+                    footer.entrance(8)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
             }
+            .trackScrollOffset(into: $scrollOffset)
         }
-        .navigationTitle("Profile")
+        .toolbar(.hidden, for: .navigationBar)
         .confirmationDialog(
             home.isDemo ? "Leave the demo?" : "Sign out of Achievement?",
             isPresented: $confirmingSignOut,
@@ -52,106 +78,120 @@ struct ProfileView: View {
         }
     }
 
-    private var statsGrid: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12),
-            ],
-            spacing: 12
-        ) {
-            StatTile(
-                value: Int(library.stats.totalHours.rounded()).formatted(),
-                label: "Hours played",
-                symbol: "clock.fill",
-                tint: Theme.accent
-            )
-            StatTile(
-                value: Format.percent(library.stats.averageCompletion),
-                label: "Avg completion",
-                symbol: "circle.dashed",
-                tint: Color(red: 0.22, green: 0.72, blue: 0.93)
-            )
-            StatTile(
-                value: "\(library.stats.perfectGames)",
-                label: "Perfect games",
-                symbol: "crown.fill",
-                tint: Theme.gold
-            )
-            StatTile(
-                value: library.stats.unlockedAchievements.formatted(),
-                label: "Achievements",
-                symbol: "trophy.fill",
-                tint: Color(red: 0.16, green: 0.78, blue: 0.57)
-            )
+    // MARK: - Editorial stats
+
+    /// Two loose columns of oversized numbers — a spread, not a spreadsheet.
+    private var editorialStats: some View {
+        let stats = library.stats
+        return HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 22) {
+                EditorialStat(
+                    value: Int(stats.totalHours.rounded()).formatted(),
+                    label: "Hours played"
+                )
+                EditorialStat(
+                    value: "\(stats.perfectGames)",
+                    label: "Perfect games"
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 22) {
+                EditorialStat(
+                    value: Format.percent(stats.averageCompletion),
+                    label: "Avg completion"
+                )
+                EditorialStat(
+                    value: stats.unlockedAchievements.formatted(),
+                    label: "Achievements"
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private var signOutButton: some View {
-        Button(role: .destructive) {
-            confirmingSignOut = true
-        } label: {
-            Text(home.isDemo ? "Leave Demo" : "Sign Out")
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
-                .cardSurface(cornerRadius: 16)
+    private var footer: some View {
+        VStack(spacing: 16) {
+            Button(home.isDemo ? "Leave demo" : "Sign out") {
+                confirmingSignOut = true
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+            .buttonStyle(.pressable)
+
+            Text("Game data provided by Steam. Not affiliated with Valve.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
-        .buttonStyle(.pressable)
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 16)
     }
 }
 
 // MARK: - Identity
 
-private struct IdentityCard: View {
+private struct IdentityHeader: View {
     let profile: PlayerProfile?
     let isDemo: Bool
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             if let profile {
-                AvatarView(profile: profile, size: 76)
+                AvatarView(profile: profile, size: 88, showsAuroraRing: true)
 
-                VStack(spacing: 3) {
+                VStack(spacing: 4) {
                     Text(profile.personaName)
-                        .font(.title2.weight(.bold))
-                    Text(subtitle(for: profile))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.editorialTitle)
+                    if let created = profile.accountCreatedAt {
+                        Text("Hunting since \(created.formatted(.dateTime.year()))")
+                            .capsLabel()
+                    }
                 }
             } else {
-                Circle().fill(.quaternary).frame(width: 76, height: 76).shimmering()
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(.quaternary)
-                    .frame(width: 120, height: 20)
-                    .shimmering()
+                BreathingPlaceholder(shape: .circle)
+                    .frame(width: 88, height: 88)
+                BreathingPlaceholder(shape: .capsule)
+                    .frame(width: 150, height: 26)
             }
 
             if isDemo {
-                Text("DEMO")
+                Text("Demo")
                     .font(.caption2.weight(.bold))
-                    .kerning(1)
+                    .kerning(1.2)
+                    .textCase(.uppercase)
                     .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Theme.accent.opacity(0.12)))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.accent.opacity(0.13)))
+            }
+        }
+        .padding(.top, 20)
+    }
+}
+
+/// Passport stamps: small circular seals for the trip so far.
+private struct StampRow: View {
+    let stats: LibraryStats
+    let profile: PlayerProfile?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Seal(symbol: "square.stack.fill", value: "\(stats.totalGames)", label: "Games")
+            Seal(symbol: "crown.fill", value: "\(stats.perfectGames)", label: "Perfect",
+                 tint: Theme.gold)
+            Seal(symbol: "trophy.fill", value: compact(stats.unlockedAchievements),
+                 label: "Unlocked")
+            if let country = profile?.countryCode {
+                Seal(symbol: nil, value: flag(for: country), label: "Base")
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(24)
-        .cardSurface()
     }
 
-    private func subtitle(for profile: PlayerProfile) -> String {
-        var parts: [String] = []
-        if let created = profile.accountCreatedAt {
-            parts.append("On Steam since \(created.formatted(.dateTime.year()))")
-        }
-        if let country = profile.countryCode {
-            parts.append(flag(for: country))
-        }
-        return parts.joined(separator: "  ")
+    private func compact(_ value: Int) -> String {
+        value >= 10_000
+            ? "\((Double(value) / 1000 * 10).rounded() / 10)k"
+            : value.formatted()
     }
 
     private func flag(for countryCode: String) -> String {
@@ -163,38 +203,148 @@ private struct IdentityCard: View {
     }
 }
 
-private struct StatTile: View {
+private struct Seal: View {
+    let symbol: String?
     let value: String
     let label: String
-    let symbol: String
-    let tint: Color
+    var tint: Color = Theme.accent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: symbol)
-                .font(.subheadline)
-                .foregroundStyle(tint)
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(tint.opacity(0.12)))
-
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(spacing: 7) {
+            VStack(spacing: 1) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 11))
+                        .foregroundStyle(tint)
+                }
                 Text(value)
-                    .font(.statNumber)
-                    .contentTransition(.numericText())
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(label).statLabelStyle()
+                    .minimumScaleFactor(0.6)
             }
+            .frame(width: 62, height: 62)
+            .glassChip(.circle)
+
+            Text(label).capsLabel()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .cardSurface(cornerRadius: 20)
+        .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - Charts
+private struct EditorialStat: View {
+    let value: String
+    let label: String
 
-private struct UnlockHistoryCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .tracking(-0.5)
+                .contentTransition(.numericText())
+            Text(label).capsLabel()
+        }
+    }
+}
+
+// MARK: - Habits
+
+private struct HabitLines: View {
+    let habits: GamingHabits
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let weekday = habits.favoriteWeekday {
+                line(
+                    symbol: "calendar",
+                    text: "\(weekday)s are your day — \(Format.percent(habits.favoriteWeekdayShare)) of unlocks land there"
+                )
+            }
+            line(
+                symbol: habits.nightOwlShare >= 0.5 ? "moon.stars.fill" : "sun.max.fill",
+                text: habits.nightOwlShare >= 0.5
+                    ? "Night owl — \(Format.percent(habits.nightOwlShare)) of unlocks after dark"
+                    : "Daylight hunter — \(Format.percent(1 - habits.nightOwlShare)) of unlocks before dusk"
+            )
+            if let month = habits.busiestMonth {
+                line(
+                    symbol: "flame.fill",
+                    text: "Busiest month: \(month.formatted(.dateTime.month(.wide).year())) with \(habits.busiestMonthCount) unlocks"
+                )
+            }
+        }
+    }
+
+    private func line(symbol: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.footnote)
+                .foregroundStyle(Theme.accentDuotone)
+                .frame(width: 22)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.primary.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+// MARK: - Year summary
+
+private struct YearSummaryCapsule: View {
+    let summary: YearSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 0) {
+                MiniStat(value: "\(summary.unlockCount)", label: "Unlocks")
+                MiniStat(value: "\(summary.gamesTouched)", label: "Games")
+                MiniStat(value: "\(summary.newPerfectGames)", label: "New perfects")
+                MiniStat(value: "\(summary.longestStreak)", label: "Best streak")
+            }
+
+            if let rarest = summary.rarest,
+               let percent = rarest.achievement.globalPercent {
+                HStack(spacing: 12) {
+                    AchievementIcon(achievement: rarest.achievement, size: 38)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Rarest this year: \(rarest.achievement.displayName)")
+                            .font(.footnote.weight(.semibold))
+                            .lineLimit(1)
+                        Text("\(rarest.gameName) · only \(Format.globalPercent(percent))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassChip(.blob(30))
+    }
+
+    private struct MiniStat: View {
+        let value: String
+        let label: String
+
+        var body: some View {
+            VStack(spacing: 3) {
+                Text(value)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(label)
+                    .font(.system(size: 9, weight: .semibold))
+                    .textCase(.uppercase)
+                    .kerning(0.8)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+// MARK: - History chart
+
+private struct HistoryChart: View {
     let unlocks: [UnlockEvent]
 
     private var history: [MonthlyUnlocks] {
@@ -202,48 +352,30 @@ private struct UnlockHistoryCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Unlock History")
-                    .font(.headline)
-                Text("Achievements per month, last 12 months")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Chart(history) { month in
-                BarMark(
-                    x: .value("Month", month.month, unit: .month),
-                    y: .value("Unlocks", month.count)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Theme.accent, Color(red: 0.22, green: 0.72, blue: 0.93)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .cornerRadius(3)
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .month, count: 3)) { _ in
-                    AxisValueLabel(format: .dateTime.month(.abbreviated))
-                        .font(.caption2)
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { _ in
-                    AxisGridLine().foregroundStyle(.quaternary)
-                    AxisValueLabel().font(.caption2)
-                }
-            }
-            .frame(height: 150)
+        Chart(history) { month in
+            BarMark(
+                x: .value("Month", month.month, unit: .month),
+                y: .value("Unlocks", month.count),
+                width: .ratio(0.55)
+            )
+            .foregroundStyle(Theme.accentDuotone)
+            .cornerRadius(5)
         }
-        .padding(20)
-        .cardSurface()
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .month, count: 3)) { _ in
+                AxisValueLabel(format: .dateTime.month(.abbreviated))
+                    .font(.caption2)
+            }
+        }
+        .chartYAxis(.hidden)
+        .frame(height: 130)
     }
 }
 
-private struct RarityCollectionCard: View {
+// MARK: - Rarity gems
+
+/// One circle per rarity tier, sized by how many the player holds.
+private struct RarityGems: View {
     let unlocks: [UnlockEvent]
 
     private var counts: [(rarity: Rarity, count: Int)] {
@@ -254,47 +386,35 @@ private struct RarityCollectionCard: View {
         }
     }
 
-    private var maxCount: Int { counts.map(\.count).max() ?? 1 }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Rarity Collection")
-                    .font(.headline)
-                Text("Your unlocks, rarest first")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 12) {
-                ForEach(counts, id: \.rarity) { entry in
-                    HStack(spacing: 10) {
-                        RarityChip(rarity: entry.rarity)
-                            .frame(width: 86, alignment: .leading)
-
-                        GeometryReader { proxy in
-                            Capsule()
-                                .fill(Theme.color(for: entry.rarity).opacity(0.75))
-                                .frame(
-                                    width: max(
-                                        8,
-                                        proxy.size.width
-                                            * Double(entry.count) / Double(maxCount)
-                                    )
+        let maxCount = Double(counts.map(\.count).max() ?? 1)
+        HStack(alignment: .bottom, spacing: 18) {
+            ForEach(counts, id: \.rarity) { entry in
+                let scale = (Double(entry.count) / maxCount).squareRoot()
+                VStack(spacing: 8) {
+                    Text("\(entry.count)")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(
+                            width: 34 + 30 * scale,
+                            height: 34 + 30 * scale
+                        )
+                        .background(
+                            Circle()
+                                .fill(Theme.color(for: entry.rarity).gradient)
+                                .shadow(
+                                    color: Theme.color(for: entry.rarity).opacity(0.55),
+                                    radius: 9, y: 3
                                 )
-                                .frame(maxHeight: .infinity, alignment: .center)
-                        }
-                        .frame(height: 8)
-
-                        Text("\(entry.count)")
-                            .font(.miniNumber)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, alignment: .trailing)
-                    }
+                        )
+                    Text(entry.rarity.displayName)
+                        .font(.system(size: 9, weight: .semibold))
+                        .textCase(.uppercase)
+                        .kerning(0.6)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity)
             }
         }
-        .padding(20)
-        .cardSurface()
     }
 }

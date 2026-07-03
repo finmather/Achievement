@@ -1,28 +1,39 @@
 import SwiftUI
 
-/// Type roles. Numerals use SF Rounded — friendlier for stats, the same move
-/// Apple Fitness makes — while running text stays default SF.
+/// Editorial type scale. Numerals are oversized SF Rounded with tightened
+/// tracking — stats should read like a magazine spread, not a spreadsheet.
 extension Font {
-    /// Hero numbers (dashboard ring percentage).
-    static let heroNumber = Font.system(size: 44, weight: .bold, design: .rounded)
+    /// The dashboard's giant hero percentage.
+    static let heroNumber = Font.system(size: 64, weight: .bold, design: .rounded)
 
-    /// Large stat values in tiles.
-    static let statNumber = Font.system(size: 26, weight: .semibold, design: .rounded)
+    /// Screen titles ("Library", the profile name).
+    static let editorialTitle = Font.system(size: 34, weight: .bold, design: .rounded)
 
-    /// Small numeric annotations (card progress, counts).
+    /// Floating section titles.
+    static let sectionTitle = Font.system(size: 21, weight: .semibold, design: .rounded)
+
+    /// Prominent stat values.
+    static let statNumber = Font.system(size: 28, weight: .semibold, design: .rounded)
+
+    /// Small numeric annotations (counts on chips and rows).
     static let miniNumber = Font.system(size: 13, weight: .semibold, design: .rounded)
-
-    /// Uppercase section/stat labels.
-    static let statLabel = Font.system(size: 11, weight: .semibold)
 }
 
 extension Text {
-    /// The quiet uppercase caption above stat values.
-    func statLabelStyle() -> some View {
+    /// Kerned uppercase whisper above numbers and sections.
+    func capsLabel() -> some View {
         self
-            .font(.statLabel)
+            .font(.system(size: 11, weight: .semibold))
             .textCase(.uppercase)
-            .kerning(0.8)
+            .kerning(1.6)
             .foregroundStyle(.secondary)
+    }
+
+    /// Hero numerals get tighter tracking as they grow.
+    func heroNumberStyle() -> some View {
+        self
+            .font(.heroNumber)
+            .tracking(-1.5)
+            .contentTransition(.numericText())
     }
 }

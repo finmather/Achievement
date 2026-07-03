@@ -27,7 +27,7 @@ struct RemoteArtView: View {
                         if urlIndex < urls.count - 1 { urlIndex += 1 }
                     }
             case .empty:
-                placeholder.shimmering()
+                placeholder.breathing()
             @unknown default:
                 placeholder
             }

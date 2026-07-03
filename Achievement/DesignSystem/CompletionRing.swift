@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// The signature progress element. Animates from its previous value with a
-/// gentle spring whenever progress changes, and sweeps in on first appearance.
+/// The signature progress element. The arc carries a soft glow halo (an
+/// identical blurred arc behind it), sweeps in with a spring on first
+/// appearance, and re-springs on every change. Perfect rings glow gold.
 struct CompletionRing<Center: View>: View {
     var fraction: Double
     var isPerfect: Bool = false
     var lineWidth: CGFloat = 10
     var animatesOnAppear: Bool = true
+    var showsGlow: Bool = true
     @ViewBuilder var center: () -> Center
 
     @State private var displayed: Double = 0
@@ -14,21 +16,14 @@ struct CompletionRing<Center: View>: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(.quaternary, lineWidth: lineWidth)
+                .stroke(.quaternary.opacity(0.6), lineWidth: lineWidth)
 
-            Circle()
-                .trim(from: 0, to: max(0.0001, displayed))
-                .stroke(
-                    AngularGradient(
-                        colors: gradientColors,
-                        center: .center,
-                        startAngle: .degrees(0),
-                        endAngle: .degrees(360 * max(0.25, displayed))
-                    ),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .opacity(fraction > 0 ? 1 : 0)
+            if showsGlow {
+                arc
+                    .blur(radius: lineWidth * 0.9)
+                    .opacity(isPerfect ? 0.75 : 0.5)
+            }
+            arc
 
             center()
         }
@@ -52,6 +47,22 @@ struct CompletionRing<Center: View>: View {
         .accessibilityValue("\(Int((fraction * 100).rounded())) percent")
     }
 
+    private var arc: some View {
+        Circle()
+            .trim(from: 0, to: max(0.0001, displayed))
+            .stroke(
+                AngularGradient(
+                    colors: gradientColors,
+                    center: .center,
+                    startAngle: .degrees(0),
+                    endAngle: .degrees(360 * max(0.25, displayed))
+                ),
+                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+            )
+            .rotationEffect(.degrees(-90))
+            .opacity(fraction > 0 ? 1 : 0)
+    }
+
     private var gradientColors: [Color] {
         let colors = Theme.completionColors(fraction: fraction, isPerfect: isPerfect)
         // Close the angular loop so the cap color matches the start.
@@ -64,13 +75,15 @@ extension CompletionRing where Center == EmptyView {
         fraction: Double,
         isPerfect: Bool = false,
         lineWidth: CGFloat = 10,
-        animatesOnAppear: Bool = true
+        animatesOnAppear: Bool = true,
+        showsGlow: Bool = true
     ) {
         self.init(
             fraction: fraction,
             isPerfect: isPerfect,
             lineWidth: lineWidth,
-            animatesOnAppear: animatesOnAppear
+            animatesOnAppear: animatesOnAppear,
+            showsGlow: showsGlow
         ) { EmptyView() }
     }
 }

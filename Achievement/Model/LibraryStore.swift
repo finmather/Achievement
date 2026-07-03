@@ -22,8 +22,12 @@ final class LibraryStore {
     private(set) var streak: StreakSummary = .none
     private(set) var lastSynced: Date?
     /// Set when a refresh discovers unlocks that weren't there before —
-    /// drives the dashboard celebration toast, then gets cleared.
+    /// drives the celebration overlay, then gets cleared.
     private(set) var freshUnlockCount = 0
+    /// The newest of those fresh unlocks — the one the celebration stars.
+    private(set) var latestFreshUnlock: UnlockEvent?
+    /// Community genre tags by appID, feeding the profile radar.
+    private(set) var genreTags: [Int: [String]] = [:]
 
     private var achievementsByApp: [Int: [Achievement]] = [:]
     private var knownUnlockIDs: Set<String>?
@@ -54,6 +58,26 @@ final class LibraryStore {
     }
 
     var recentUnlocks: [UnlockEvent] { Array(unlocks.prefix(12)) }
+
+    var genreProfile: GenreProfile {
+        GenreEngine.profile(games: games, tagsByApp: genreTags)
+    }
+
+    var habits: GamingHabits {
+        HabitsEngine.habits(unlockDates: unlocks.map(\.unlockedAt))
+    }
+
+    var yearSummary: YearSummary {
+        HabitsEngine.yearSummary(
+            year: Calendar.current.component(.year, from: .now),
+            unlocks: unlocks,
+            games: games
+        )
+    }
+
+    var nextMilestone: Milestone? {
+        MilestoneEngine.next(games: games, stats: stats, streak: streak)
+    }
 
     func refresh() async {
         guard !isRefreshing else { return }
@@ -89,6 +113,7 @@ final class LibraryStore {
                 }
             }
             await rebuildUnlockHistory()
+            genreTags = await dataSource.genreTags()
             phase = .idle
         } catch {
             phase = .failed(friendlyMessage(for: error))
@@ -104,6 +129,7 @@ final class LibraryStore {
 
     func acknowledgeFreshUnlocks() {
         freshUnlockCount = 0
+        latestFreshUnlock = nil
     }
 
     func clearLocalData() async {
@@ -141,8 +167,11 @@ final class LibraryStore {
         // Celebrate only unlocks that appeared after the first full load.
         let ids = Set(unlocks.map(\.id))
         if let known = knownUnlockIDs {
-            let fresh = ids.subtracting(known).count
-            if fresh > 0 { freshUnlockCount = fresh }
+            let fresh = ids.subtracting(known)
+            if !fresh.isEmpty {
+                freshUnlockCount = fresh.count
+                latestFreshUnlock = unlocks.first { fresh.contains($0.id) }
+            }
         }
         knownUnlockIDs = ids
     }

@@ -1,93 +1,66 @@
 import SwiftUI
 import AchievementCore
 
+/// The daily ritual. No cards, no boxes: an editorial hero number with an
+/// arc sweeping behind it, then floating groups — next milestone, latest
+/// unlock spotlight, perfect-game coins, streak orbit, recent play — all
+/// breathing on the aurora.
 struct DashboardView: View {
     let home: HomeModel
+    let onCelebrate: (UnlockEvent) -> Void
+
+    @State private var scrollOffset: CGFloat = 0
 
     private var library: LibraryStore { home.library }
 
     var body: some View {
         ZStack {
-            ScreenBackground()
+            AuroraBackground(scrollOffset: scrollOffset)
 
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 28) {
                     header
+                        .entrance(0)
 
                     switch (library.hasContent, library.phase) {
                     case (false, .loadingLibrary):
-                        DashboardSkeleton()
+                        loadingState
                     case (false, .failed(let message)):
-                        SyncErrorView(message: message) {
-                            Task { await library.refresh() }
-                        }
+                        EmptyStateView(
+                            motif: .signal,
+                            title: "Can't reach Steam",
+                            message: message,
+                            actionTitle: "Try again",
+                            action: { Task { await library.refresh() } }
+                        )
                     default:
                         loadedContent
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
             }
+            .trackScrollOffset(into: $scrollOffset)
             .refreshable { await library.refresh() }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .overlay(alignment: .top) { celebrationToast }
     }
 
-    @ViewBuilder
-    private var loadedContent: some View {
-        HeroCompletionCard(stats: library.stats, streak: library.streak)
-
-        if case .hydrating(let done, let total) = library.phase {
-            SyncProgressBanner(done: done, total: total)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-        }
-        if case .failed(let message) = library.phase, library.hasContent {
-            InlineErrorBanner(message: message)
-        }
-
-        if !library.recentUnlocks.isEmpty {
-            SectionHeader("Recently Unlocked")
-            RecentUnlocksRail(unlocks: library.recentUnlocks, gameLookup: game(for:))
-        }
-
-        if library.streak.current > 0 {
-            StreakCard(streak: library.streak)
-        }
-
-        if !library.nearlyPerfect.isEmpty {
-            SectionHeader("Almost There")
-            NearlyPerfectRail(games: Array(library.nearlyPerfect.prefix(8)))
-        }
-
-        if !library.recentlyPlayed.isEmpty {
-            SectionHeader("Recently Played")
-            VStack(spacing: 10) {
-                ForEach(library.recentlyPlayed) { game in
-                    NavigationLink(value: game) {
-                        RecentGameRow(game: game)
-                    }
-                    .buttonStyle(.pressableCard)
-                }
-            }
-        }
-    }
+    // MARK: - Header
 
     private var header: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greeting)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(greeting).capsLabel()
                 Text(home.profile?.personaName ?? "Achievement")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.editorialTitle)
             }
             Spacer()
             if let profile = home.profile {
-                AvatarView(profile: profile, size: 44)
+                AvatarView(profile: profile, size: 46)
             }
         }
-        .padding(.top, 12)
+        .padding(.top, 16)
     }
 
     private var greeting: String {
@@ -98,67 +71,184 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: - Content
+
     @ViewBuilder
-    private var celebrationToast: some View {
-        if library.freshUnlockCount > 0 {
-            CelebrationToast(count: library.freshUnlockCount)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .task {
-                    Haptics.celebrate()
-                    try? await Task.sleep(for: .seconds(4))
-                    withAnimation(.spring(duration: 0.5)) {
-                        library.acknowledgeFreshUnlocks()
-                    }
+    private var loadedContent: some View {
+        HeroCompletion(
+            stats: library.stats,
+            streak: library.streak,
+            syncPhase: library.phase
+        )
+        .entrance(1)
+
+        if case .failed(let message) = library.phase, library.hasContent {
+            Label(message, systemImage: "wifi.exclamationmark")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .glassChip()
+                .entrance(2)
+        }
+
+        if let milestone = library.nextMilestone {
+            MilestoneCapsule(milestone: milestone)
+                .entrance(2)
+        }
+
+        if let latest = library.unlocks.first {
+            FloatingSection(title: "Latest unlock", index: 3) {
+                SpotlightUnlock(unlock: latest) {
+                    onCelebrate(latest)
                 }
+            }
+        }
+
+        let perfects = library.games.filter(\.isPerfect)
+        if !perfects.isEmpty {
+            FloatingSection(title: "Perfect games", index: 4) {
+                PerfectCoinShelf(games: perfects)
+            }
+        }
+
+        if library.streak.current > 0 {
+            StreakOrbit(streak: library.streak, activeDays: last7Days)
+                .entrance(5)
+        }
+
+        if !library.recentlyPlayed.isEmpty {
+            FloatingSection(title: "Back to it", index: 6) {
+                RecentPlayRail(games: library.recentlyPlayed)
+            }
+        }
+
+        if library.unlocks.count > 1 {
+            FloatingSection(title: "Recent unlocks", index: 7) {
+                RecentUnlockRail(
+                    unlocks: Array(library.recentUnlocks.dropFirst()),
+                    gameLookup: { id in library.games.first { $0.appID == id } }
+                )
+            }
         }
     }
 
-    private func game(for appID: Int) -> Game? {
-        library.games.first { $0.appID == appID }
+    private var loadingState: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            BreathingPlaceholder(shape: .circle)
+                .frame(width: 190, height: 190)
+                .padding(.top, 12)
+            BreathingPlaceholder(shape: .capsule)
+                .frame(width: 240, height: 54)
+            HStack(spacing: -14) {
+                ForEach(0..<4, id: \.self) { _ in
+                    BreathingPlaceholder(shape: .circle)
+                        .frame(width: 56, height: 56)
+                }
+            }
+        }
+        .accessibilityLabel("Loading your library")
+    }
+
+    private var last7Days: [Bool] {
+        let calendar = Calendar.current
+        let activeDays = Set(library.unlocks.map { calendar.startOfDay(for: $0.unlockedAt) })
+        return (0..<7).reversed().map { offset in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: .now) else {
+                return false
+            }
+            return activeDays.contains(calendar.startOfDay(for: day))
+        }
+    }
+}
+
+// MARK: - Section scaffolding
+
+/// A floating group: kerned label, content, no box.
+struct FloatingSection<Content: View>: View {
+    let title: String
+    var index: Int = 0
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title).capsLabel()
+            content()
+        }
+        .entrance(index)
     }
 }
 
 // MARK: - Hero
 
-private struct HeroCompletionCard: View {
+/// Giant editorial percentage with a glowing arc sweeping behind it. During
+/// a first import the arc doubles as the sync progress indicator.
+private struct HeroCompletion: View {
     let stats: LibraryStats
     let streak: StreakSummary
+    let syncPhase: SyncPhase
+
+    @State private var swept = false
+
+    private var fraction: Double { stats.averageCompletion }
 
     var body: some View {
-        VStack(spacing: 20) {
-            CompletionRing(
-                fraction: stats.averageCompletion,
-                lineWidth: 14
-            ) {
-                VStack(spacing: 2) {
-                    Text(Format.percent(stats.averageCompletion))
-                        .font(.heroNumber)
-                        .contentTransition(.numericText())
-                    Text("Average")
-                        .statLabelStyle()
+        VStack(alignment: .leading, spacing: 26) {
+            ZStack(alignment: .leading) {
+                arc
+                    .frame(width: 240, height: 240)
+                    .offset(x: 130, y: -6)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(Format.percent(fraction))
+                        .heroNumberStyle()
+                    Text("Average completion").capsLabel()
+
+                    if case .hydrating(let done, let total) = syncPhase {
+                        Text("Importing \(done) of \(total) games")
+                            .font(.miniNumber)
+                            .foregroundStyle(Theme.accentTeal)
+                            .contentTransition(.numericText())
+                            .padding(.top, 8)
+                    }
                 }
             }
-            .frame(width: 168, height: 168)
-            .padding(.top, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
 
-            HStack(spacing: 0) {
-                HeroStat(
-                    value: stats.unlockedAchievements.formatted(),
-                    label: "Achievements"
-                )
-                heroDivider
+            HStack(spacing: 32) {
+                HeroStat(value: stats.unlockedAchievements.formatted(), label: "Unlocked")
                 HeroStat(value: "\(stats.perfectGames)", label: "Perfect")
-                heroDivider
                 HeroStat(value: "\(streak.current)", label: "Day streak")
             }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .cardSurface()
+        .padding(.top, 6)
+        .onAppear {
+            withAnimation(.spring(duration: 1.2, bounce: 0.16).delay(0.2)) {
+                swept = true
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
-    private var heroDivider: some View {
-        Rectangle().fill(.quaternary).frame(width: 1, height: 34)
+    private var arc: some View {
+        let colors = Theme.completionColors(fraction: fraction, isPerfect: false)
+        let sweep = Circle()
+            .trim(from: 0, to: swept ? max(0.02, fraction * 0.78) : 0.001)
+            .stroke(
+                AngularGradient(
+                    colors: colors + [colors[0]],
+                    center: .center,
+                    startAngle: .degrees(0),
+                    endAngle: .degrees(300)
+                ),
+                style: StrokeStyle(lineWidth: 18, lineCap: .round)
+            )
+            .rotationEffect(.degrees(112))
+        return ZStack {
+            sweep.blur(radius: 16).opacity(0.55)
+            sweep
+        }
     }
 }
 
@@ -167,326 +257,302 @@ private struct HeroStat: View {
     let label: String
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .font(.statNumber)
                 .contentTransition(.numericText())
-            Text(label).statLabelStyle()
+            Text(label).capsLabel()
         }
-        .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - Sync states
+// MARK: - Milestone
 
-private struct SyncProgressBanner: View {
-    let done: Int
-    let total: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Importing achievements")
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                Text("\(done) of \(total)")
-                    .font(.miniNumber)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-            }
-            ProgressView(value: Double(done), total: Double(max(total, 1)))
-                .tint(Theme.accent)
-        }
-        .padding(16)
-        .cardSurface(cornerRadius: 18)
-    }
-}
-
-private struct InlineErrorBanner: View {
-    let message: String
+private struct MilestoneCapsule: View {
+    let milestone: Milestone
 
     var body: some View {
-        Label(message, systemImage: "wifi.exclamationmark")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface(cornerRadius: 16)
-    }
-}
-
-private struct SyncErrorView: View {
-    let message: String
-    let retry: () -> Void
-
-    var body: some View {
-        ContentUnavailableView {
-            Label("Can't Sync", systemImage: "wifi.exclamationmark")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again", action: retry)
-                .buttonStyle(.borderedProminent)
-        }
-        .padding(.top, 60)
-    }
-}
-
-private struct DashboardSkeleton: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.quaternary)
-                .frame(height: 280)
-            HStack(spacing: 12) {
-                ForEach(0..<2, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.quaternary)
-                        .frame(height: 150)
+        Group {
+            switch milestone {
+            case .perfectGame(let game, let remaining):
+                NavigationLink(value: game) {
+                    capsule(
+                        symbol: "crown.fill",
+                        tint: Theme.gold,
+                        title: remaining == 1
+                            ? "One away from perfect"
+                            : "\(remaining) to go",
+                        subtitle: game.name,
+                        ring: game.achievements?.fraction
+                    )
                 }
-            }
-        }
-        .shimmering()
-        .accessibilityLabel("Loading your library")
-    }
-}
+                .buttonStyle(.pressableCard)
 
-// MARK: - Celebration
-
-private struct CelebrationToast: View {
-    let count: Int
-
-    var body: some View {
-        Label(
-            count == 1 ? "New achievement unlocked" : "\(count) new achievements",
-            systemImage: "sparkles"
-        )
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.white)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 11)
-        .background(
-            Capsule().fill(
-                LinearGradient(
-                    colors: [Theme.gold, Theme.goldDeep],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
+            case .streakRecord(let record, let remaining):
+                capsule(
+                    symbol: "flame.fill",
+                    tint: .orange,
+                    title: remaining == 1
+                        ? "A record day awaits"
+                        : "\(remaining) days to a new record",
+                    subtitle: "Your best streak is \(record)",
+                    ring: nil
                 )
-            )
-        )
-        .shadow(color: Theme.goldDeep.opacity(0.4), radius: 12, y: 5)
-        .padding(.top, 8)
-    }
-}
 
-// MARK: - Rails & rows
-
-struct SectionHeader: View {
-    let title: String
-
-    init(_ title: String) { self.title = title }
-
-    var body: some View {
-        Text(title)
-            .font(.title3.weight(.semibold))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 6)
-    }
-}
-
-private struct RecentUnlocksRail: View {
-    let unlocks: [UnlockEvent]
-    let gameLookup: (Int) -> Game?
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(unlocks) { unlock in
-                    if let game = gameLookup(unlock.gameAppID) {
-                        NavigationLink(value: game) {
-                            UnlockCard(unlock: unlock)
-                        }
-                        .buttonStyle(.pressableCard)
-                    } else {
-                        UnlockCard(unlock: unlock)
-                    }
-                }
+            case .unlockCount(let target, let remaining):
+                capsule(
+                    symbol: "sparkles",
+                    tint: Theme.accent,
+                    title: "\(remaining) to \(target.formatted())",
+                    subtitle: "Your next unlock landmark",
+                    ring: nil
+                )
             }
-            .padding(.horizontal, 20)
-            .scrollTargetLayout()
         }
-        .scrollTargetBehavior(.viewAligned)
-        .padding(.horizontal, -20)
     }
-}
 
-private struct UnlockCard: View {
-    let unlock: UnlockEvent
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            AchievementIcon(achievement: unlock.achievement, size: 44)
-
-            Text(unlock.achievement.displayName)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(2, reservesSpace: true)
-                .multilineTextAlignment(.leading)
+    private func capsule(
+        symbol: String, tint: Color, title: String, subtitle: String, ring: Double?
+    ) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(tint.opacity(0.14)))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(unlock.gameName)
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                Text(Format.relative(unlock.unlockedAt))
-                    .font(.caption2)
+            }
+            Spacer(minLength: 10)
+            if let ring {
+                CompletionRing(fraction: ring, lineWidth: 4, animatesOnAppear: false)
+                    .frame(width: 30, height: 30)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding(14)
-        .frame(width: 168, alignment: .leading)
-        .cardSurface(cornerRadius: 20)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .glassChip()
     }
 }
 
-private struct StreakCard: View {
+// MARK: - Spotlight
+
+private struct SpotlightUnlock: View {
+    let unlock: UnlockEvent
+    let onReplay: () -> Void
+
+    private var tint: Color {
+        unlock.achievement.rarity.map(Theme.color(for:)) ?? Theme.accent
+    }
+
+    var body: some View {
+        Button(action: onReplay) {
+            HStack(spacing: 16) {
+                AchievementIcon(achievement: unlock.achievement, size: 58)
+                    .shadow(color: tint.opacity(0.55), radius: 14)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(unlock.achievement.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text("\(unlock.gameName) · \(Format.relative(unlock.unlockedAt))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if let rarity = unlock.achievement.rarity {
+                        RarityChip(rarity: rarity)
+                            .padding(.top, 3)
+                    }
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "play.circle")
+                    .font(.title3)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .glassChip(.blob(30))
+        }
+        .buttonStyle(.pressableCard)
+        .accessibilityHint("Replays the unlock celebration")
+    }
+}
+
+// MARK: - Perfect coins
+
+/// Overlapping gold-rimmed circles of cover art, waving slightly off the
+/// baseline — a shelf of medals, not a grid of thumbnails.
+private struct PerfectCoinShelf: View {
+    let games: [Game]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: -14) {
+                ForEach(Array(games.enumerated()), id: \.element.id) { index, game in
+                    NavigationLink(value: game) {
+                        RemoteArtView.icon(for: game)
+                            .frame(width: 58, height: 58)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle().stroke(Theme.goldGradient, lineWidth: 2.5)
+                            )
+                            .shadow(color: Theme.goldDeep.opacity(0.35), radius: 8, y: 3)
+                            .offset(y: index.isMultiple(of: 2) ? 4 : -4)
+                    }
+                    .buttonStyle(.pressable)
+                    .zIndex(Double(games.count - index))
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 8)
+        }
+        .padding(.horizontal, -24)
+    }
+}
+
+// MARK: - Streak orbit
+
+private struct StreakOrbit: View {
     let streak: StreakSummary
+    /// Last seven days, oldest first.
+    let activeDays: [Bool]
 
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: "flame.fill")
-                .font(.title2)
+                .font(.title3)
                 .foregroundStyle(
                     LinearGradient(
                         colors: [Theme.gold, .orange],
                         startPoint: .top, endPoint: .bottom
                     )
                 )
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(.orange.opacity(0.12)))
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("\(streak.current)-day unlock streak")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("\(streak.current)-day streak")
                     .font(.subheadline.weight(.semibold))
-                Text(
-                    streak.unlockedToday
-                        ? "Extended today — keep it alive."
-                        : "Unlock one today to keep it going."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                HStack(spacing: 7) {
+                    ForEach(Array(activeDays.enumerated()), id: \.offset) { _, active in
+                        Circle()
+                            .fill(active ? AnyShapeStyle(Theme.accentDuotone)
+                                         : AnyShapeStyle(.quaternary))
+                            .frame(width: 8, height: 8)
+                    }
+                    Text(streak.unlockedToday ? "extended today" : "unlock one today")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 4)
+                }
             }
-            Spacer()
+            Spacer(minLength: 10)
             VStack(spacing: 2) {
                 Text("\(streak.longest)")
                     .font(.statNumber)
-                Text("Best").statLabelStyle()
+                Text("Best").capsLabel()
             }
         }
-        .padding(18)
-        .cardSurface(cornerRadius: 20)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .glassChip(.blob(30))
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct NearlyPerfectRail: View {
+// MARK: - Rails
+
+private struct RecentPlayRail: View {
     let games: [Game]
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 ForEach(games) { game in
                     NavigationLink(value: game) {
-                        NearlyPerfectCard(game: game)
-                    }
-                    .buttonStyle(.pressableCard)
-                }
-            }
-            .padding(.horizontal, 20)
-            .scrollTargetLayout()
-        }
-        .scrollTargetBehavior(.viewAligned)
-        .padding(.horizontal, -20)
-    }
-}
-
-private struct NearlyPerfectCard: View {
-    let game: Game
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            RemoteArtView.wide(for: game)
-                .frame(width: 220, height: 103)
-                .clipped()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(game.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-
-                if let progress = game.achievements {
-                    HStack(spacing: 8) {
-                        ProgressView(value: progress.fraction)
-                            .tint(
-                                Theme.completionGradient(
-                                    fraction: progress.fraction
+                        HStack(spacing: 10) {
+                            RemoteArtView.icon(for: game)
+                                .frame(width: 34, height: 34)
+                                .clipShape(Circle())
+                            Text(game.name)
+                                .font(.footnote.weight(.semibold))
+                                .lineLimit(1)
+                            if let progress = game.achievements {
+                                CompletionRing(
+                                    fraction: progress.fraction,
+                                    isPerfect: progress.isPerfect,
+                                    lineWidth: 3,
+                                    animatesOnAppear: false,
+                                    showsGlow: false
                                 )
-                            )
-                        Text(progress.remaining == 1
-                             ? "1 left"
-                             : "\(progress.remaining) left")
-                            .font(.miniNumber)
-                            .foregroundStyle(.secondary)
-                            .fixedSize()
+                                .frame(width: 20, height: 20)
+                            }
+                        }
+                        .padding(.leading, 8)
+                        .padding(.trailing, 14)
+                        .padding(.vertical, 8)
+                        .glassChip()
                     }
+                    .buttonStyle(.pressable)
                 }
             }
-            .padding(12)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 6)
         }
-        .frame(width: 220, alignment: .leading)
-        .cardSurface(cornerRadius: 20)
+        .padding(.horizontal, -24)
     }
 }
 
-private struct RecentGameRow: View {
-    let game: Game
+private struct RecentUnlockRail: View {
+    let unlocks: [UnlockEvent]
+    let gameLookup: (Int) -> Game?
 
     var body: some View {
-        HStack(spacing: 14) {
-            RemoteArtView.icon(for: game)
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(game.name)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 18) {
+                ForEach(unlocks) { unlock in
+                    if let game = gameLookup(unlock.gameAppID) {
+                        NavigationLink(value: game) {
+                            UnlockMote(unlock: unlock)
+                        }
+                        .buttonStyle(.pressable)
+                    } else {
+                        UnlockMote(unlock: unlock)
+                    }
+                }
             }
-            Spacer()
-
-            if let progress = game.achievements {
-                CompletionRing(
-                    fraction: progress.fraction,
-                    isPerfect: progress.isPerfect,
-                    lineWidth: 4,
-                    animatesOnAppear: false
-                )
-                .frame(width: 30, height: 30)
-            }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 4)
         }
-        .padding(14)
-        .cardSurface(cornerRadius: 18)
+        .padding(.horizontal, -24)
+    }
+}
+
+private struct UnlockMote: View {
+    let unlock: UnlockEvent
+
+    private var tint: Color {
+        unlock.achievement.rarity.map(Theme.color(for:)) ?? Theme.accent
     }
 
-    private var subtitle: String {
-        var parts = [Format.hours(game.playtimeMinutes)]
-        if let lastPlayed = game.lastPlayed {
-            parts.append(Format.relative(lastPlayed))
+    var body: some View {
+        VStack(spacing: 8) {
+            AchievementIcon(achievement: unlock.achievement, size: 52)
+                .shadow(color: tint.opacity(0.4), radius: 9)
+            Text(unlock.achievement.displayName)
+                .font(.caption2.weight(.medium))
+                .lineLimit(2, reservesSpace: true)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
         }
-        return parts.joined(separator: " · ")
+        .frame(width: 76)
     }
 }
 
@@ -512,7 +578,7 @@ struct AchievementIcon: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+        .clipShape(Circle())
         .saturation(achievement.isUnlocked ? 1 : 0)
         .opacity(achievement.isUnlocked ? 1 : 0.55)
     }
@@ -520,12 +586,12 @@ struct AchievementIcon: View {
     private var fallback: some View {
         ZStack {
             LinearGradient(
-                colors: [tint.opacity(0.85), tint.opacity(0.55)],
+                colors: [tint.opacity(0.85), tint.opacity(0.5)],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
             Image(systemName: achievement.isUnlocked ? "trophy.fill" : "lock.fill")
-                .font(.system(size: size * 0.4, weight: .medium))
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(size: size * 0.38, weight: .medium))
+                .foregroundStyle(.white.opacity(0.92))
         }
     }
 

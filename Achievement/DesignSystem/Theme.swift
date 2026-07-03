@@ -1,17 +1,32 @@
 import SwiftUI
 import AchievementCore
 
-/// The app's visual language in one place. Calm neutrals for chrome, one
-/// confident accent, and a single completion hue progression used everywhere:
-/// indigo (starting) → blue (working) → teal (closing in) → gold (perfect).
-/// Users learn the language once and read progress at a glance.
+/// The Aurora visual language. One completion hue progression (indigo →
+/// blue → teal, gold strictly reserved for perfection), a violet–teal
+/// duotone accent, and glass chips instead of card rectangles. Surfaces are
+/// capsules, circles, and continuous-corner blobs floating on the aurora.
 enum Theme {
-    // MARK: - Accent & fixed colors
+    // MARK: - Accent duotone
 
-    static let accent = Color(red: 0.36, green: 0.42, blue: 0.96)
+    static let accent = Color(red: 0.47, green: 0.40, blue: 0.98)
+    static let accentTeal = Color(red: 0.16, green: 0.72, blue: 0.72)
 
-    static let gold = Color(red: 0.98, green: 0.75, blue: 0.24)
-    static let goldDeep = Color(red: 0.93, green: 0.58, blue: 0.12)
+    static var accentDuotone: LinearGradient {
+        LinearGradient(
+            colors: [accent, accentTeal],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+    }
+
+    static let gold = Color(red: 0.98, green: 0.76, blue: 0.26)
+    static let goldDeep = Color(red: 0.91, green: 0.56, blue: 0.11)
+
+    static var goldGradient: LinearGradient {
+        LinearGradient(
+            colors: [gold, goldDeep],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+    }
 
     // MARK: - Completion language
 
@@ -21,16 +36,16 @@ enum Theme {
         }
         switch fraction {
         case ..<0.001:
-            return [Color(white: 0.62), Color(white: 0.5)]
+            return [Color(white: 0.6), Color(white: 0.45)]
         case ..<0.34:
-            return [Color(red: 0.48, green: 0.44, blue: 0.96),
-                    Color(red: 0.36, green: 0.42, blue: 0.96)]
+            return [Color(red: 0.52, green: 0.44, blue: 0.99),
+                    Color(red: 0.38, green: 0.40, blue: 0.97)]
         case ..<0.67:
-            return [Color(red: 0.30, green: 0.56, blue: 0.98),
-                    Color(red: 0.22, green: 0.72, blue: 0.93)]
+            return [Color(red: 0.32, green: 0.55, blue: 0.99),
+                    Color(red: 0.20, green: 0.72, blue: 0.94)]
         default:
-            return [Color(red: 0.18, green: 0.76, blue: 0.78),
-                    Color(red: 0.16, green: 0.82, blue: 0.57)]
+            return [Color(red: 0.16, green: 0.77, blue: 0.77),
+                    Color(red: 0.18, green: 0.84, blue: 0.55)]
         }
     }
 
@@ -47,60 +62,63 @@ enum Theme {
     static func color(for rarity: Rarity) -> Color {
         switch rarity {
         case .common: Color(white: 0.55)
-        case .uncommon: Color(red: 0.22, green: 0.72, blue: 0.55)
-        case .rare: Color(red: 0.30, green: 0.56, blue: 0.98)
-        case .veryRare: Color(red: 0.62, green: 0.42, blue: 0.98)
+        case .uncommon: Color(red: 0.22, green: 0.74, blue: 0.55)
+        case .rare: Color(red: 0.32, green: 0.56, blue: 0.99)
+        case .veryRare: Color(red: 0.64, green: 0.42, blue: 0.99)
         case .legendary: gold
         }
     }
 
-    // MARK: - Surfaces
-
-    /// Cards sit on the grouped background with a hairline, not a heavy shadow.
-    static func cardBackground(_ scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(white: 0.11) : .white
+    /// The halo behind celebration icons and rare unlock rows.
+    static func glow(for rarity: Rarity) -> Color {
+        color(for: rarity).opacity(0.55)
     }
 }
 
-/// Soft two-stop wash behind every screen — quieter than a flat fill,
-/// far from glassmorphism.
-struct ScreenBackground: View {
-    @Environment(\.colorScheme) private var scheme
+// MARK: - Glass chips
 
-    var body: some View {
-        LinearGradient(
-            colors: scheme == .dark
-                ? [Color(red: 0.05, green: 0.05, blue: 0.08), Color(red: 0.08, green: 0.08, blue: 0.11)]
-                : [Color(red: 0.96, green: 0.96, blue: 0.98), Color(red: 0.93, green: 0.94, blue: 0.97)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .ignoresSafeArea()
+/// The only surface in the app: thin material clipped to an organic shape.
+/// Never a full-width rectangle — content floats, chips punctuate.
+enum GlassShape {
+    case capsule
+    case circle
+    case blob(CGFloat)
+
+    var anyShape: AnyShape {
+        switch self {
+        case .capsule: AnyShape(Capsule())
+        case .circle: AnyShape(Circle())
+        case .blob(let radius):
+            AnyShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        }
     }
 }
 
-/// Standard card container: soft corner radius, hairline stroke, gentle shadow.
-struct CardSurface: ViewModifier {
+private struct GlassChip: ViewModifier {
+    let shape: GlassShape
     @Environment(\.colorScheme) private var scheme
-    var cornerRadius: CGFloat = 24
 
     func body(content: Content) -> some View {
+        let anyShape = shape.anyShape
         content
-            .background(Theme.cardBackground(scheme))
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(.ultraThinMaterial, in: anyShape)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(.primary.opacity(scheme == .dark ? 0.08 : 0.05), lineWidth: 1)
+                anyShape.stroke(
+                    scheme == .dark
+                        ? Color.white.opacity(0.13)
+                        : Color.white.opacity(0.6),
+                    lineWidth: 0.8
+                )
             )
             .shadow(
-                color: .black.opacity(scheme == .dark ? 0.35 : 0.06),
-                radius: 14, y: 6
+                color: .black.opacity(scheme == .dark ? 0.32 : 0.09),
+                radius: 18, y: 9
             )
     }
 }
 
 extension View {
-    func cardSurface(cornerRadius: CGFloat = 24) -> some View {
-        modifier(CardSurface(cornerRadius: cornerRadius))
+    func glassChip(_ shape: GlassShape = .capsule) -> some View {
+        modifier(GlassChip(shape: shape))
     }
 }

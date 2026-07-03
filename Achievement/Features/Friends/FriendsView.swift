@@ -4,66 +4,85 @@ import AchievementCore
 struct FriendsView: View {
     let home: HomeModel
 
+    @State private var scrollOffset: CGFloat = 0
+
     private var friends: FriendsStore { home.friends }
 
     var body: some View {
         ZStack {
-            ScreenBackground()
+            AuroraBackground(scrollOffset: scrollOffset)
 
-            Group {
-                switch friends.phase {
-                case .idle, .loading:
-                    FriendsSkeleton()
-                case .unavailable(let message):
-                    ContentUnavailableView {
-                        Label("Friends Unavailable", systemImage: "person.2.slash")
-                    } description: {
-                        Text(message)
-                    } actions: {
-                        Button("Try Again") {
-                            Task { await friends.loadIfNeeded() }
-                        }
-                        .buttonStyle(.borderedProminent)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Friends")
+                            .font(.editorialTitle)
+                        Text("Pick a rival — friendly ones only.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
-                case .loaded where friends.friends.isEmpty:
-                    ContentUnavailableView(
-                        "No Friends Found",
-                        systemImage: "person.2",
-                        description: Text("Steam friends appear here once they're visible on your profile.")
-                    )
-                case .loaded:
-                    list
+                    .padding(.top, 16)
+                    .entrance(0)
+
+                    content
                 }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
             }
+            .trackScrollOffset(into: $scrollOffset)
+            .refreshable { await friends.loadIfNeeded() }
         }
-        .navigationTitle("Friends")
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: PlayerProfile.self) { friend in
             FriendCompareView(friend: friend, home: home)
         }
         .task { await friends.loadIfNeeded() }
     }
 
-    private var list: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                Text("Pick a friend to compare progress, game by game.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 4)
+    @ViewBuilder
+    private var content: some View {
+        switch friends.phase {
+        case .idle, .loading:
+            VStack(spacing: 14) {
+                ForEach(0..<5, id: \.self) { index in
+                    HStack(spacing: 14) {
+                        BreathingPlaceholder(shape: .circle)
+                            .frame(width: 52, height: 52)
+                        BreathingPlaceholder(shape: .capsule)
+                            .frame(height: 36)
+                    }
+                    .entrance(index)
+                }
+            }
+            .accessibilityLabel("Loading friends")
 
-                ForEach(friends.friends) { friend in
+        case .unavailable(let message):
+            EmptyStateView(
+                motif: .lock,
+                title: "Friends are hidden",
+                message: message,
+                actionTitle: "Try again",
+                action: { Task { await friends.loadIfNeeded() } }
+            )
+
+        case .loaded where friends.friends.isEmpty:
+            EmptyStateView(
+                motif: .friends,
+                title: "No rivals yet",
+                message: "Steam friends appear here once they're visible on your profile."
+            )
+
+        case .loaded:
+            VStack(spacing: 12) {
+                ForEach(Array(friends.friends.enumerated()), id: \.element.id) { index, friend in
                     NavigationLink(value: friend) {
                         FriendRow(friend: friend)
                     }
                     .buttonStyle(.pressableCard)
+                    .entrance(min(index + 1, 8))
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 32)
         }
-        .refreshable { await friends.loadIfNeeded() }
     }
 }
 
@@ -72,7 +91,7 @@ private struct FriendRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            AvatarView(profile: friend, size: 48)
+            AvatarView(profile: friend, size: 52)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(friend.personaName)
@@ -84,30 +103,15 @@ private struct FriendRow: View {
                 }
             }
             Spacer()
-            Label("Compare", systemImage: "chevron.right")
-                .labelStyle(.iconOnly)
+            Text("Compare")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Theme.accent.opacity(0.13)))
         }
-        .padding(14)
-        .cardSurface(cornerRadius: 18)
-    }
-}
-
-private struct FriendsSkeleton: View {
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                ForEach(0..<6, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.quaternary)
-                        .frame(height: 76)
-                }
-            }
-            .padding(20)
-        }
-        .shimmering()
-        .scrollDisabled(true)
-        .accessibilityLabel("Loading friends")
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .glassChip(.blob(30))
     }
 }

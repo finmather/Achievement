@@ -1,6 +1,10 @@
 import SwiftUI
 import AchievementCore
 
+/// Immersive game page: the cover art becomes the entire atmosphere — a
+/// blurred, darkened bloom of it fills the screen while a sharp floating
+/// cover carries the zoom transition in from the library. Achievements are
+/// floating rows on the atmosphere, not boxes.
 struct GameDetailView: View {
     let game: Game
     let home: HomeModel
@@ -9,34 +13,42 @@ struct GameDetailView: View {
     @State private var loadError: String?
     @State private var hasCelebrated = false
 
-    /// Live copy from the store — progress can improve while this screen is
-    /// open (mid-sync); fall back to the pushed snapshot.
+    /// Live copy from the store — progress can improve mid-sync.
     private var currentGame: Game {
         home.library.games.first { $0.appID == game.appID } ?? game
     }
 
     var body: some View {
         ZStack {
-            ScreenBackground()
+            BackdropArt(game: currentGame)
 
             ScrollView {
-                VStack(spacing: 20) {
-                    StretchyHeader(game: currentGame)
+                VStack(alignment: .leading, spacing: 24) {
+                    FloatingCover(game: currentGame)
+                        .entrance(0)
 
-                    VStack(spacing: 20) {
-                        ProgressSummaryCard(game: currentGame)
-
-                        if currentGame.isPerfect {
-                            PerfectBanner()
-                        }
-
-                        achievementsSection
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(currentGame.name)
+                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                        Text(playSummary).capsLabel()
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
+                    .entrance(1)
+
+                    if currentGame.isPerfect {
+                        PerfectRibbon().entrance(2)
+                    }
+
+                    if let nextUp {
+                        NextUpSpotlight(achievement: nextUp).entrance(2)
+                    }
+
+                    achievementsSection
                 }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 40)
             }
-            .ignoresSafeArea(edges: .top)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -49,62 +61,70 @@ struct GameDetailView: View {
         }
     }
 
+    private var playSummary: String {
+        var parts = [Format.hours(currentGame.playtimeMinutes) + " played"]
+        if let lastPlayed = currentGame.lastPlayed {
+            parts.append("last \(Format.relative(lastPlayed))")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// The most attainable locked achievement — a nudge, not a nag.
+    private var nextUp: Achievement? {
+        achievements?
+            .filter { !$0.isUnlocked && !$0.isHidden }
+            .max { ($0.globalPercent ?? -1) < ($1.globalPercent ?? -1) }
+    }
+
     // MARK: - Achievements
 
     @ViewBuilder
     private var achievementsSection: some View {
         if let achievements {
-            let locked = achievements
-                .filter { !$0.isUnlocked }
-                .sorted { ($0.globalPercent ?? -1) > ($1.globalPercent ?? -1) }
-            let unlocked = achievements
-                .filter(\.isUnlocked)
-                .sorted { ($0.unlockedAt ?? .distantPast) > ($1.unlockedAt ?? .distantPast) }
-
             if achievements.isEmpty {
-                ContentUnavailableView(
-                    "No Achievements",
-                    systemImage: "circle.dashed",
-                    description: Text("This game doesn't offer achievements.")
+                EmptyStateView(
+                    motif: .trophy,
+                    title: "No achievements here",
+                    message: "This game doesn't offer achievements — pure play, no checklists."
                 )
-                .padding(.top, 12)
             } else {
+                let locked = achievements
+                    .filter { !$0.isUnlocked }
+                    .sorted { ($0.globalPercent ?? -1) > ($1.globalPercent ?? -1) }
+                let unlocked = achievements
+                    .filter(\.isUnlocked)
+                    .sorted { ($0.unlockedAt ?? .distantPast) > ($1.unlockedAt ?? .distantPast) }
+
                 if !locked.isEmpty {
-                    AchievementGroup(
-                        title: "To Unlock",
-                        count: locked.count,
-                        achievements: locked
-                    )
+                    AchievementGroup(title: "To unlock", achievements: locked, index: 3)
                 }
                 if !unlocked.isEmpty {
-                    AchievementGroup(
-                        title: "Unlocked",
-                        count: unlocked.count,
-                        achievements: unlocked
-                    )
+                    AchievementGroup(title: "Unlocked", achievements: unlocked, index: 4)
                 }
             }
         } else if let loadError {
-            ContentUnavailableView {
-                Label("Couldn't Load Achievements", systemImage: "wifi.exclamationmark")
-            } description: {
-                Text(loadError)
-            } actions: {
-                Button("Try Again") {
+            EmptyStateView(
+                motif: .signal,
+                title: "Couldn't load achievements",
+                message: loadError,
+                actionTitle: "Try again",
+                action: {
                     self.loadError = nil
                     Task { await loadAchievements() }
                 }
-                .buttonStyle(.borderedProminent)
-            }
+            )
         } else {
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
                 ForEach(0..<5, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.quaternary)
-                        .frame(height: 76)
+                    HStack(spacing: 14) {
+                        BreathingPlaceholder(shape: .circle)
+                            .frame(width: 46, height: 46)
+                        BreathingPlaceholder(shape: .capsule)
+                            .frame(height: 34)
+                    }
                 }
             }
-            .shimmering()
+            .padding(.top, 10)
             .accessibilityLabel("Loading achievements")
         }
     }
@@ -123,166 +143,154 @@ struct GameDetailView: View {
     }
 }
 
-// MARK: - Header
+// MARK: - Atmosphere
 
-/// Hero art that stretches on over-scroll and parallaxes away when scrolling
-/// down — the screen should feel anchored to the game's identity.
-private struct StretchyHeader: View {
+/// The cover art, blurred into a full-screen atmosphere with a scrim that
+/// keeps text legible in both color schemes.
+private struct BackdropArt: View {
     let game: Game
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        GeometryReader { proxy in
-            let minY = proxy.frame(in: .global).minY
-            let stretch = max(0, minY)
+        ZStack {
+            AuroraBackground()
 
             RemoteArtView.wide(for: game)
-                .frame(width: proxy.size.width, height: proxy.size.height + stretch)
-                .clipped()
+                .scaledToFill()
+                .scaleEffect(1.4)
+                .blur(radius: 42, opaque: true)
+                .opacity(scheme == .dark ? 0.55 : 0.4)
                 .overlay {
                     LinearGradient(
-                        colors: [.clear, .clear, .black.opacity(0.72)],
-                        startPoint: .top,
-                        endPoint: .bottom
+                        colors: scheme == .dark
+                            ? [.black.opacity(0.25), .black.opacity(0.6)]
+                            : [.white.opacity(0.35), .white.opacity(0.7)],
+                        startPoint: .top, endPoint: .bottom
                     )
                 }
-                .overlay(alignment: .bottomLeading) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(game.name)
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.7)
-                        Text(playSummary)
-                            .font(.footnote.weight(.medium))
-                            .opacity(0.85)
-                    }
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
-                    .padding(20)
-                }
-                .offset(y: -stretch)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
-        .frame(height: 260)
-    }
-
-    private var playSummary: String {
-        var parts = [Format.hours(game.playtimeMinutes) + " played"]
-        if let lastPlayed = game.lastPlayed {
-            parts.append("last played \(Format.relative(lastPlayed))")
-        }
-        return parts.joined(separator: " · ")
     }
 }
 
-// MARK: - Summary
-
-private struct ProgressSummaryCard: View {
+/// Sharp cover floating on the atmosphere, ring overlapping its corner.
+private struct FloatingCover: View {
     let game: Game
 
     var body: some View {
-        HStack(spacing: 20) {
-            if let progress = game.achievements, progress.total > 0 {
-                CompletionRing(
-                    fraction: progress.fraction,
-                    isPerfect: progress.isPerfect,
-                    lineWidth: 9
-                ) {
-                    Text(Format.percent(progress.fraction))
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .contentTransition(.numericText())
-                }
-                .frame(width: 92, height: 92)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(progress.unlocked) of \(progress.total)")
-                        .font(.statNumber)
-                        .contentTransition(.numericText())
-                    Text("Achievements unlocked").statLabelStyle()
-
-                    if progress.remaining > 0 {
-                        Text(progress.remaining == 1
-                             ? "One away from perfect"
-                             : "\(progress.remaining) to go")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 2)
+        RemoteArtView.wide(for: game)
+            .aspectRatio(21 / 10, contentMode: .fit)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 0.8)
+            )
+            .shadow(color: .black.opacity(0.4), radius: 26, y: 14)
+            .overlay(alignment: .bottomTrailing) {
+                if let progress = game.achievements, progress.total > 0 {
+                    CompletionRing(
+                        fraction: progress.fraction,
+                        isPerfect: progress.isPerfect,
+                        lineWidth: 6
+                    ) {
+                        VStack(spacing: 0) {
+                            Text("\(progress.unlocked)")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .contentTransition(.numericText())
+                            Text("of \(progress.total)")
+                                .font(.system(size: 8.5, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .frame(width: 68, height: 68)
+                    .padding(7)
+                    .glassChip(.circle)
+                    .offset(x: 10, y: 22)
                 }
-                Spacer(minLength: 0)
-            } else {
-                Image(systemName: "circle.dashed")
-                    .font(.title)
-                    .foregroundStyle(.tertiary)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("No achievement data yet")
-                        .font(.subheadline.weight(.semibold))
-                    Text("Progress appears after the first sync.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
             }
-        }
-        .padding(20)
-        .cardSurface()
+            .padding(.top, 8)
+            .padding(.bottom, 14)
     }
 }
 
-private struct PerfectBanner: View {
+private struct PerfectRibbon: View {
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: "crown.fill")
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Perfect Game")
-                    .font(.subheadline.weight(.bold))
-                Text("Every achievement unlocked. Beautifully done.")
-                    .font(.footnote)
-                    .opacity(0.9)
-            }
+            Text("Perfect game")
+                .font(.subheadline.weight(.bold))
             Spacer()
+            Text("Every achievement unlocked")
+                .font(.caption)
+                .opacity(0.85)
         }
         .foregroundStyle(.white)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Theme.gold, Theme.goldDeep],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .shadow(color: Theme.goldDeep.opacity(0.35), radius: 12, y: 5)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(Capsule().fill(Theme.goldGradient))
+        .shadow(color: Theme.goldDeep.opacity(0.45), radius: 14, y: 6)
     }
 }
 
-// MARK: - Achievement list
+private struct NextUpSpotlight: View {
+    let achievement: Achievement
+
+    var body: some View {
+        HStack(spacing: 14) {
+            AchievementIcon(achievement: achievement, size: 50)
+                .shadow(color: Theme.accent.opacity(0.4), radius: 10)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Next up").capsLabel()
+                Text(achievement.displayName)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                if let percent = achievement.globalPercent {
+                    Text("\(Format.globalPercent(percent)) have this one")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .glassChip(.blob(28))
+    }
+}
+
+// MARK: - Rows
 
 private struct AchievementGroup: View {
     let title: String
-    let count: Int
     let achievements: [Achievement]
+    var index: Int = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Text(title).font(.title3.weight(.semibold))
-                Text("\(count)")
+                Text(title).capsLabel()
+                Text("\(achievements.count)")
                     .font(.miniNumber)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(.quaternary))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(.top, 4)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
 
-            VStack(spacing: 10) {
-                ForEach(achievements) { achievement in
+            VStack(spacing: 0) {
+                ForEach(Array(achievements.enumerated()), id: \.element.id) { position, achievement in
                     AchievementRow(achievement: achievement)
+                    if position < achievements.count - 1 {
+                        Rectangle()
+                            .fill(.primary.opacity(0.07))
+                            .frame(height: 0.5)
+                            .padding(.leading, 62)
+                    }
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .entrance(index)
     }
 }
 
@@ -292,7 +300,7 @@ private struct AchievementRow: View {
     private var isMystery: Bool { achievement.isHidden && !achievement.isUnlocked }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 16) {
             AchievementIcon(achievement: achievement, size: 46)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -330,14 +338,12 @@ private struct AchievementRow: View {
             if achievement.isUnlocked {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.body)
-                    .foregroundStyle(Color(red: 0.16, green: 0.78, blue: 0.57))
+                    .foregroundStyle(Color(red: 0.18, green: 0.8, blue: 0.56))
                     .padding(.top, 2)
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(cornerRadius: 18)
-        .opacity(achievement.isUnlocked ? 1 : 0.88)
+        .padding(.vertical, 13)
+        .opacity(achievement.isUnlocked ? 1 : 0.8)
     }
 
     private var detailText: String? {
@@ -355,6 +361,6 @@ struct RarityChip: View {
             .foregroundStyle(Theme.color(for: rarity))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Capsule().fill(Theme.color(for: rarity).opacity(0.13)))
+            .background(Capsule().fill(Theme.color(for: rarity).opacity(0.14)))
     }
 }

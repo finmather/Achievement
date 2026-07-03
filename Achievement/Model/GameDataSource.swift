@@ -13,6 +13,9 @@ protocol GameDataSource: Sendable {
     func friends() async throws -> [PlayerProfile]
     func friendGames(friendID: SteamID) async throws -> [Game]
     func friendProgress(appID: Int, friendID: SteamID) async throws -> AchievementProgress?
+    /// Community genre tags by appID — feeds the profile radar. Cheap after
+    /// first fetch (cached permanently).
+    func genreTags() async -> [Int: [String]]
     func clearLocalData() async
 }
 
@@ -21,12 +24,14 @@ protocol GameDataSource: Sendable {
 struct LiveGameDataSource: GameDataSource {
     let player: SteamID
     private let client: SteamWebAPIClient
+    private let steamSpy: SteamSpyClient
     private let cache: LibraryCache
     private let syncService: LibrarySyncService
 
     init(player: SteamID, apiKey: String) {
         self.player = player
         client = SteamWebAPIClient(apiKey: apiKey)
+        steamSpy = SteamSpyClient()
         cache = LibraryCache(directory: AppConfig.cacheDirectory)
         syncService = LibrarySyncService(client: client, cache: cache)
     }
@@ -86,6 +91,30 @@ struct LiveGameDataSource: GameDataSource {
         } catch SteamWebAPIError.noAchievements {
             return nil
         }
+    }
+
+    /// Tags never change, so anything cached is final. Fetch a bounded batch
+    /// of missing ones per call (most-played first, SteamSpy asks for ~1
+    /// req/sec politeness) — a big library fills in over a few refreshes.
+    func genreTags() async -> [Int: [String]] {
+        var known = await cache.genreTags() ?? [:]
+        let played = (await cache.games() ?? [])
+            .filter { $0.playtimeMinutes > 0 }
+            .sorted { $0.playtimeMinutes > $1.playtimeMinutes }
+            .map(\.appID)
+        let missing = played.filter { known[$0] == nil }.prefix(30)
+        guard !missing.isEmpty else { return known }
+
+        for appID in missing {
+            do {
+                known[appID] = try await steamSpy.tags(appID: appID)
+            } catch {
+                break // transient (network, rate limit) — next refresh resumes
+            }
+            try? await Task.sleep(for: .milliseconds(400))
+        }
+        await cache.storeGenreTags(known)
+        return known
     }
 
     func clearLocalData() async {
@@ -150,6 +179,10 @@ struct DemoGameDataSource: GameDataSource {
         SampleData.friendGames(friendID: friendID)
             .first { $0.appID == appID }?
             .achievements
+    }
+
+    func genreTags() async -> [Int: [String]] {
+        SampleData.genreTags
     }
 
     func clearLocalData() async {}
