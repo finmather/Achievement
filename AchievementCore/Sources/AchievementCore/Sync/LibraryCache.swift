@@ -54,6 +54,25 @@ public actor LibraryCache {
         save(achievements, achievementsName(appID))
     }
 
+    /// Community genre tags by appID. JSON dictionaries need string keys,
+    /// hence the conversion.
+    public func genreTags() -> [Int: [String]]? {
+        guard let raw = load([String: [String]].self, "genre-tags.json") else { return nil }
+        var result: [Int: [String]] = [:]
+        for (key, value) in raw {
+            if let appID = Int(key) { result[appID] = value }
+        }
+        return result
+    }
+
+    public func storeGenreTags(_ tags: [Int: [String]]) {
+        var raw: [String: [String]] = [:]
+        for (appID, values) in tags {
+            raw[String(appID)] = values
+        }
+        save(raw, "genre-tags.json")
+    }
+
     /// Every hydrated game's achievements, keyed by appID — feeds unlock
     /// history (dashboard rail, streaks, profile charts) without refetching.
     public func allAchievements() -> [Int: [Achievement]] {

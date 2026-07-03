@@ -5,10 +5,13 @@ import XCTest
 import FoundationNetworking
 #endif
 
-/// UTC gregorian calendar so date math is deterministic on any machine.
+/// UTC gregorian calendar with a pinned locale so date math and symbol
+/// lookups are deterministic on any machine (Windows corelibs returns
+/// abbreviated weekday symbols when the locale is unset).
 let utcCalendar: Calendar = {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "UTC")!
+    calendar.locale = Locale(identifier: "en_US")
     return calendar
 }()
 

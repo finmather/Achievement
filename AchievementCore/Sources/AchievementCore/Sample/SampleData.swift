@@ -118,6 +118,28 @@ public enum SampleData {
         .sorted { $0.unlockedAt > $1.unlockedAt }
     }
 
+    /// Curated community tags per game so the profile radar always has a
+    /// rich hexagon in demo mode and previews.
+    public static var genreTags: [Int: [String]] {
+        [
+            1145360: ["Roguelike", "Action RPG", "Hack and Slash"],
+            1245620: ["RPG", "Souls-like", "Open World"],
+            413150: ["Farming Sim", "RPG", "Simulation"],
+            620: ["Puzzle", "FPS", "Co-op"],
+            367520: ["Metroidvania", "Platformer", "Souls-like"],
+            504230: ["Precision Platformer", "Platformer", "Puzzle"],
+            1794680: ["Roguelite", "Action Roguelike", "Bullet Hell"],
+            646570: ["Deckbuilding", "Roguelike", "Turn-Based Strategy"],
+            588650: ["Roguelite", "Metroidvania", "Platformer"],
+            753640: ["Puzzle", "Exploration", "Mystery"],
+            268910: ["Platformer", "Precision Platformer", "Boss Rush"],
+            105600: ["Sandbox", "Survival", "Adventure"],
+            264710: ["Survival", "Open World", "Exploration"],
+            220: ["FPS", "Shooter", "Sci-fi"],
+            1057090: ["Platformer", "Metroidvania"],
+        ]
+    }
+
     // MARK: - Friends
 
     public static var friends: [PlayerProfile] {
