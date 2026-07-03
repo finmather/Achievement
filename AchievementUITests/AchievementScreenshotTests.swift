@@ -26,8 +26,11 @@ final class AchievementScreenshotTests: XCTestCase {
         let firstCover = app.buttons.matching(identifier: "library.cover").firstMatch
         if firstCover.waitForExistence(timeout: 5) {
             firstCover.tap()
-            sleep(2) // zoom transition + backdrop bloom
+            sleep(3) // zoom transition + backdrop bloom
             capture(app, name: "03-game-detail")
+            app.swipeUp()
+            sleep(1)
+            capture(app, name: "03b-game-detail-scrolled")
             goBack(app)
         }
 

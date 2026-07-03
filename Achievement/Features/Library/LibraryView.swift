@@ -191,6 +191,7 @@ private struct FeaturedCover: View {
                 // layout in unbounded-height scroll contexts.
                 Color.clear
                     .aspectRatio(21 / 10, contentMode: .fit)
+                    .frame(maxHeight: 200)
                     .overlay { RemoteArtView.wide(for: game) }
                     .clipped()
                     .overlay {
