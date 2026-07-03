@@ -23,13 +23,12 @@ final class AchievementScreenshotTests: XCTestCase {
         sleep(2)
         capture(app, name: "02-library")
 
-        let firstCover = app.scrollViews.firstMatch.buttons.firstMatch
+        let firstCover = app.buttons.matching(identifier: "library.cover").firstMatch
         if firstCover.waitForExistence(timeout: 5) {
             firstCover.tap()
             sleep(2) // zoom transition + backdrop bloom
             capture(app, name: "03-game-detail")
-            app.navigationBars.buttons.firstMatch.tap()
-            sleep(1)
+            goBack(app)
         }
 
         let search = app.textFields["library.search"]
@@ -46,13 +45,12 @@ final class AchievementScreenshotTests: XCTestCase {
         sleep(2)
         capture(app, name: "05-friends")
 
-        let firstFriend = app.scrollViews.firstMatch.buttons.firstMatch
+        let firstFriend = app.buttons.matching(identifier: "friends.row").firstMatch
         if firstFriend.waitForExistence(timeout: 5) {
             firstFriend.tap()
             sleep(3) // duel bars animate + shared progress hydrates
             capture(app, name: "06-friend-compare")
-            app.navigationBars.buttons.firstMatch.tap()
-            sleep(1)
+            goBack(app)
         }
 
         tabBar.buttons["Profile"].tap()
@@ -77,6 +75,20 @@ final class AchievementScreenshotTests: XCTestCase {
                       "celebration overlay never settled")
         sleep(1) // embers mid-drift
         capture(app, name: "09-celebration")
+    }
+
+    /// Back-navigation that can never fail the walk: try the bar button,
+    /// fall back to the edge-swipe gesture.
+    private func goBack(_ app: XCUIApplication) {
+        let back = app.navigationBars.buttons.firstMatch
+        if back.waitForExistence(timeout: 4) {
+            back.tap()
+        } else {
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        sleep(1)
     }
 
     private func capture(_ app: XCUIApplication, name: String) {

@@ -79,6 +79,7 @@ struct LibraryView: View {
             if let featured {
                 FeaturedCover(game: featured)
                     .matchedTransitionSource(id: featured.appID, in: zoom)
+                    .accessibilityIdentifier("library.cover")
                     .entrance(4)
             }
 
@@ -249,6 +250,7 @@ private struct StaggeredCoverGrid: View {
             ForEach(games) { game in
                 CoverCard(game: game)
                     .matchedTransitionSource(id: game.appID, in: namespace)
+                    .accessibilityIdentifier("library.cover")
                     .scrollTransition(.animated(.spring(duration: 0.4))) { content, phase in
                         content
                             .opacity(phase.isIdentity ? 1 : 0.7)

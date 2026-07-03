@@ -79,6 +79,7 @@ struct FriendsView: View {
                         FriendRow(friend: friend)
                     }
                     .buttonStyle(.pressableCard)
+                    .accessibilityIdentifier("friends.row")
                     .entrance(min(index + 1, 8))
                 }
             }
