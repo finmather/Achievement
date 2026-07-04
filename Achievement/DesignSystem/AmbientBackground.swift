@@ -75,9 +75,15 @@ struct AmbientBackground: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Continuous full-screen position drift starves XCUITest's
+    /// accessibility snapshots (query timeouts), so ambient motion holds
+    /// still during automated walks. Everything else stays animated.
+    private static let frozenForUITests =
+        ProcessInfo.processInfo.environment["UI_TEST_DEMO_MODE"] == "1"
+
     var body: some View {
         Group {
-            if reduceMotion {
+            if reduceMotion || Self.frozenForUITests {
                 layers(t: 0)
             } else {
                 TimelineView(.animation(minimumInterval: 1 / 12)) { context in
