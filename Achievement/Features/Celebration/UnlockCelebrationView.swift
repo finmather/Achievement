@@ -124,15 +124,22 @@ struct UnlockCelebrationView: View {
     }
 }
 
-/// Slow luminous motes rising and fading from the icon's position.
+/// Slow luminous motes rising and fading from the icon's position. The
+/// whole field finishes with the choreography and goes fully still — a
+/// settled celebration shouldn't fidget (and animation-idle waits in UI
+/// tests depend on it).
 private struct EmberField: View {
     let tint: Color
     @State private var born = Date()
+    @State private var finished = false
+
+    private static let lifetime: TimeInterval = 6
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 40)) { context in
+        TimelineView(.animation(minimumInterval: 1 / 40, paused: finished)) { context in
             Canvas { canvas, size in
                 let age = context.date.timeIntervalSince(born)
+                guard age < Self.lifetime else { return }
                 let origin = CGPoint(x: size.width / 2, y: size.height * 0.42)
 
                 for index in 0..<38 {
@@ -169,12 +176,15 @@ private struct EmberField: View {
                 // not fireworks.
                 let sparkGold = Color(red: 0.98, green: 0.78, blue: 0.32)
                 if age > 0.7 {
+                    // Sparks bow out with the field: full strength through
+                    // the choreography, gone by the lifetime cutoff.
+                    let curtain = max(0, min(1, Self.lifetime - age))
                     for spark in 0..<4 {
                         let cycle = (age * 0.2 + Double(spark) * 0.25)
                             .truncatingRemainder(dividingBy: 1)
                         let angle = Double(spark) * 1.65 + 0.5
                         let distance = 46 + cycle * 160
-                        let alpha = (1 - cycle) * 0.55
+                        let alpha = (1 - cycle) * 0.55 * curtain
 
                         for segment in 0..<3 {
                             let trail = Double(segment) * 9
@@ -194,6 +204,10 @@ private struct EmberField: View {
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
+        .task {
+            try? await Task.sleep(for: .seconds(Self.lifetime + 1))
+            finished = true
+        }
     }
 }
 
