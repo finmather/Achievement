@@ -9,16 +9,16 @@ struct DashboardView: View {
     let home: HomeModel
     let onCelebrate: (UnlockEvent) -> Void
 
-    @State private var scrollOffset: CGFloat = 0
+    @Namespace private var zoom
 
     private var library: LibraryStore { home.library }
 
     var body: some View {
         ZStack {
-            AuroraBackground(scrollOffset: scrollOffset)
+            AmbientBackground(palette: .dashboard)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: Tokens.sectionGapAiry) {
                     header
                         .entrance(0)
 
@@ -41,13 +41,17 @@ struct DashboardView: View {
                 .padding(.bottom, 40)
             }
             .scrollClipDisabled()
-            .trackScrollOffset(into: $scrollOffset)
             .refreshable {
                 await library.refresh()
                 Haptics.success()
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        // Games opened from here zoom out of their rail chip.
+        .navigationDestination(for: Game.self) { game in
+            GameDetailView(game: game, home: home)
+                .navigationTransition(.zoom(sourceID: game.appID, in: zoom))
+        }
     }
 
     // MARK: - Header
@@ -123,7 +127,7 @@ struct DashboardView: View {
 
         if !library.recentlyPlayed.isEmpty {
             FloatingSection(title: "Back to it", index: 6) {
-                RecentPlayRail(games: library.recentlyPlayed)
+                RecentPlayRail(games: library.recentlyPlayed, namespace: zoom)
             }
         }
 
@@ -150,6 +154,8 @@ struct DashboardView: View {
                         .frame(width: 56, height: 56)
                 }
             }
+            LoadingQuips()
+                .padding(.top, 6)
         }
         .accessibilityLabel("Loading your library")
     }
@@ -244,8 +250,9 @@ private struct HeroCompletion: View {
 
     private var arc: some View {
         let colors = Theme.completionColors(fraction: fraction, isPerfect: false)
+        let trimEnd = swept ? max(0.02, fraction * 0.78) : 0.001
         let sweep = Circle()
-            .trim(from: 0, to: swept ? max(0.02, fraction * 0.78) : 0.001)
+            .trim(from: 0, to: trimEnd)
             .stroke(
                 AngularGradient(
                     colors: colors + [colors[0]],
@@ -257,8 +264,30 @@ private struct HeroCompletion: View {
             )
             .rotationEffect(.degrees(112))
         return ZStack {
-            sweep.blur(radius: 16).opacity(0.55)
+            sweep.blur(radius: 20).opacity(0.4)
+            sweep.blur(radius: 7).opacity(0.5)
             sweep
+
+            // The pearl riding the arc tip — same cue as the signature ring.
+            GeometryReader { proxy in
+                let angle = (112 + 360 * trimEnd) * .pi / 180
+                let radius = min(proxy.size.width, proxy.size.height) / 2
+                let tip = colors.last ?? Theme.accent
+                ZStack {
+                    Circle()
+                        .fill(tip)
+                        .frame(width: 25, height: 25)
+                        .shadow(color: tip.opacity(0.85), radius: 12)
+                    Circle()
+                        .fill(Color.white.opacity(0.92))
+                        .frame(width: 9, height: 9)
+                }
+                .position(
+                    x: proxy.size.width / 2 + cos(angle) * radius,
+                    y: proxy.size.height / 2 + sin(angle) * radius
+                )
+            }
+            .opacity(swept ? 1 : 0)
         }
     }
 }
@@ -502,6 +531,7 @@ private struct StreakOrbit: View {
 
 private struct RecentPlayRail: View {
     let games: [Game]
+    let namespace: Namespace.ID
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -530,6 +560,7 @@ private struct RecentPlayRail: View {
                         .padding(.trailing, 14)
                         .padding(.vertical, 8)
                         .glassChip()
+                        .matchedTransitionSource(id: game.appID, in: namespace)
                     }
                     .buttonStyle(.pressable)
                 }
@@ -595,21 +626,15 @@ struct AchievementIcon: View {
     var size: CGFloat = 44
 
     var body: some View {
-        Group {
-            if let url = achievement.isUnlocked
+        CachedImage(
+            url: achievement.isUnlocked
                 ? achievement.iconURL
-                : (achievement.lockedIconURL ?? achievement.iconURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    case .empty:
-                        // Real Steam icon inbound — breathe while it loads.
-                        fallback.breathing()
-                    default:
-                        fallback
-                    }
-                }
+                : (achievement.lockedIconURL ?? achievement.iconURL)
+        ) { isLoading in
+            // Real Steam icon inbound — breathe while it loads; the styled
+            // trophy stands in permanently when no icon exists at all.
+            if isLoading {
+                fallback.breathing()
             } else {
                 fallback
             }

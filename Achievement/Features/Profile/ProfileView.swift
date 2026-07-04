@@ -10,16 +10,15 @@ struct ProfileView: View {
     let home: HomeModel
 
     @State private var confirmingSignOut = false
-    @State private var scrollOffset: CGFloat = 0
 
     private var library: LibraryStore { home.library }
 
     var body: some View {
         ZStack {
-            AuroraBackground(intensity: .hero, scrollOffset: scrollOffset)
+            AmbientBackground(palette: .profile)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 30) {
+                VStack(alignment: .leading, spacing: Tokens.sectionGap) {
                     IdentityHeader(profile: home.profile, isDemo: home.isDemo)
                         .frame(maxWidth: .infinity)
                         .entrance(0)
@@ -61,7 +60,6 @@ struct ProfileView: View {
                 .padding(.bottom, 40)
             }
             .scrollClipDisabled()
-            .trackScrollOffset(into: $scrollOffset)
         }
         .toolbar(.hidden, for: .navigationBar)
         .confirmationDialog(
@@ -88,11 +86,13 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 22) {
                 EditorialStat(
                     value: Int(stats.totalHours.rounded()).formatted(),
-                    label: "Hours played"
+                    label: "Hours played",
+                    countsUp: Int(stats.totalHours.rounded())
                 )
                 EditorialStat(
                     value: "\(stats.perfectGames)",
-                    label: "Perfect games"
+                    label: "Perfect games",
+                    countsUp: stats.perfectGames
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -104,7 +104,8 @@ struct ProfileView: View {
                 )
                 EditorialStat(
                     value: stats.unlockedAchievements.formatted(),
-                    label: "Achievements"
+                    label: "Achievements",
+                    countsUp: stats.unlockedAchievements
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -235,13 +236,22 @@ private struct Seal: View {
 private struct EditorialStat: View {
     let value: String
     let label: String
+    /// Numeric stats count up on first appearance.
+    var countsUp: Int? = nil
+
+    private static let numberFont = Font.system(size: 36, weight: .bold, design: .rounded)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .font(.system(size: 36, weight: .bold, design: .rounded))
-                .tracking(-0.5)
-                .contentTransition(.numericText())
+            if let countsUp {
+                CountUpText(value: countsUp, font: Self.numberFont)
+                    .tracking(-0.5)
+            } else {
+                Text(value)
+                    .font(Self.numberFont)
+                    .tracking(-0.5)
+                    .contentTransition(.numericText())
+            }
             Text(label).capsLabel()
         }
     }

@@ -4,13 +4,11 @@ import AchievementCore
 struct FriendsView: View {
     let home: HomeModel
 
-    @State private var scrollOffset: CGFloat = 0
-
     private var friends: FriendsStore { home.friends }
 
     var body: some View {
         ZStack {
-            AuroraBackground(scrollOffset: scrollOffset)
+            AmbientBackground(palette: .friends)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -30,7 +28,6 @@ struct FriendsView: View {
                 .padding(.bottom, 40)
             }
             .scrollClipDisabled()
-            .trackScrollOffset(into: $scrollOffset)
             .refreshable { await friends.loadIfNeeded() }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -75,16 +72,64 @@ struct FriendsView: View {
 
         case .loaded:
             VStack(spacing: 12) {
-                ForEach(Array(friends.friends.enumerated()), id: \.element.id) { index, friend in
+                // Hierarchy over uniformity: the first friend is the
+                // headline rivalry, the rest are the roster.
+                if let rival = friends.friends.first {
+                    NavigationLink(value: rival) {
+                        RivalSpotlight(friend: rival)
+                    }
+                    .buttonStyle(.pressableCard)
+                    .accessibilityIdentifier("friends.row")
+                    .entrance(1)
+                    .padding(.bottom, 6)
+                }
+
+                ForEach(
+                    Array(friends.friends.dropFirst().enumerated()),
+                    id: \.element.id
+                ) { index, friend in
                     NavigationLink(value: friend) {
                         FriendRow(friend: friend)
                     }
                     .buttonStyle(.pressableCard)
                     .accessibilityIdentifier("friends.row")
-                    .entrance(min(index + 1, 8))
+                    .entrance(min(index + 2, 8))
                 }
             }
         }
+    }
+}
+
+/// The headline rivalry — one friend gets top billing.
+private struct RivalSpotlight: View {
+    let friend: PlayerProfile
+
+    var body: some View {
+        HStack(spacing: 16) {
+            AvatarView(profile: friend, size: 64, showsAuroraRing: true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Top rival").capsLabel(Theme.accentTeal)
+                Text(friend.personaName)
+                    .font(.sectionTitle)
+                    .lineLimit(1)
+                Text("Your closest rivalry — tap to compare")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 18)
+        .glassChip(.blob(Tokens.Radius.blob))
+        .overlay(
+            RoundedRectangle(cornerRadius: Tokens.Radius.blob, style: .continuous)
+                .stroke(Theme.accentTeal.opacity(0.35), lineWidth: 1)
+        )
+        .shadow(color: Theme.accentTeal.opacity(0.18), radius: 18, y: 8)
     }
 }
 

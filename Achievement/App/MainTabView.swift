@@ -14,7 +14,6 @@ struct MainTabView: View {
                 DashboardView(home: home) { unlock in
                     present(unlock, extra: 0)
                 }
-                .gameDestination(home: home)
             }
             .tabItem { Label("Overview", systemImage: "trophy.fill") }
             .tag(0)

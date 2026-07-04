@@ -20,13 +20,14 @@ extension Font {
 }
 
 extension Text {
-    /// Kerned uppercase whisper above numbers and sections.
-    func capsLabel() -> some View {
+    /// Kerned uppercase whisper above numbers and sections. Sections may
+    /// tint it with their palette's chrome color.
+    func capsLabel(_ tint: Color? = nil) -> some View {
         self
             .font(.system(size: 11, weight: .semibold))
             .textCase(.uppercase)
             .kerning(1.6)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(tint.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
     }
 
     /// Hero numerals get tighter tracking as they grow.
@@ -35,5 +36,27 @@ extension Text {
             .font(.heroNumber)
             .tracking(-1.5)
             .contentTransition(.numericText())
+    }
+}
+
+/// A number that counts up smoothly when it first appears — stats should
+/// arrive, not just sit there.
+struct CountUpText: View {
+    let value: Int
+    var font: Font = .statNumber
+
+    @State private var shown = 0
+
+    var body: some View {
+        Text(shown.formatted())
+            .font(font)
+            .contentTransition(.numericText(value: Double(shown)))
+            .onAppear {
+                guard shown != value else { return }
+                withAnimation(.sweep.delay(0.15)) { shown = value }
+            }
+            .onChange(of: value) { _, newValue in
+                withAnimation(.settle) { shown = newValue }
+            }
     }
 }

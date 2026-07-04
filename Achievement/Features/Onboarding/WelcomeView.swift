@@ -6,25 +6,36 @@ struct WelcomeView: View {
     @State private var isVerifying = false
 
     @State private var markBreathes = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
-            AuroraBackground(intensity: .hero)
+            AmbientBackground(palette: .onboarding)
 
             VStack(spacing: 0) {
                 Spacer(minLength: 48)
 
-                AppMark()
-                    .scaleEffect(markBreathes ? 1.04 : 1)
-                    .onAppear {
-                        withAnimation(
-                            .easeInOut(duration: 2.6).repeatForever(autoreverses: true)
-                        ) {
-                            markBreathes = true
-                        }
+                // Breathes slowly; every ~7 seconds the trophy gives a tiny
+                // proud wiggle — the first smile of the app.
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { context in
+                    let phase = context.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: 7)
+                    let wiggle = !reduceMotion && phase < 0.55
+                        ? sin(phase / 0.55 * .pi * 3) * 3.5
+                        : 0
+                    AppMark()
+                        .rotationEffect(.degrees(wiggle))
+                }
+                .scaleEffect(markBreathes ? 1.04 : 1)
+                .onAppear {
+                    withAnimation(
+                        .easeInOut(duration: 2.6).repeatForever(autoreverses: true)
+                    ) {
+                        markBreathes = true
                     }
-                    .padding(.bottom, 24)
-                    .entrance(0)
+                }
+                .padding(.bottom, 24)
+                .entrance(0)
 
                 Text("Achievement")
                     .font(.system(size: 40, weight: .bold, design: .rounded))

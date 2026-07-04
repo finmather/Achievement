@@ -6,8 +6,12 @@ import SwiftUI
 enum Tokens {
     /// Horizontal screen margin — every screen, no exceptions.
     static let screenMargin: CGFloat = 24
-    /// Vertical rhythm between floating sections.
+    /// Vertical rhythm between floating sections — three deliberate tempos
+    /// so screens don't all march to the same beat: the dashboard breathes,
+    /// the companion guide reads dense, most screens sit between.
+    static let sectionGapAiry: CGFloat = 30
     static let sectionGap: CGFloat = 26
+    static let sectionGapSnug: CGFloat = 20
     /// Gap between sibling items (rows in a group, chips in a rail).
     static let itemGap: CGFloat = 12
 

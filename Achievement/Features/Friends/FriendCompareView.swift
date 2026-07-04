@@ -6,7 +6,6 @@ import AchievementCore
 struct FriendCompareView: View {
     let home: HomeModel
     @State private var model: ComparisonModel
-    @State private var scrollOffset: CGFloat = 0
 
     init(friend: PlayerProfile, home: HomeModel) {
         self.home = home
@@ -19,7 +18,7 @@ struct FriendCompareView: View {
 
     var body: some View {
         ZStack {
-            AuroraBackground(intensity: .hero, scrollOffset: scrollOffset)
+            AmbientBackground(palette: .friends)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -49,7 +48,6 @@ struct FriendCompareView: View {
                 .padding(.bottom, 40)
             }
             .scrollClipDisabled()
-            .trackScrollOffset(into: $scrollOffset)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)

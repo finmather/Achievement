@@ -26,7 +26,7 @@ struct UnlockCelebrationView: View {
 
     var body: some View {
         ZStack {
-            AuroraBackground(intensity: .celebration)
+            AmbientBackground(palette: .celebration)
                 .opacity(bloomed ? 1 : 0)
             Color.black
                 .opacity(bloomed ? 0.42 : 0)
@@ -163,6 +163,32 @@ private struct EmberField: View {
                         )),
                         with: .color(tint.opacity(alpha))
                     )
+                }
+
+                // Four slow golden sparks with short comet tails — garnish,
+                // not fireworks.
+                let sparkGold = Color(red: 0.98, green: 0.78, blue: 0.32)
+                if age > 0.7 {
+                    for spark in 0..<4 {
+                        let cycle = (age * 0.2 + Double(spark) * 0.25)
+                            .truncatingRemainder(dividingBy: 1)
+                        let angle = Double(spark) * 1.65 + 0.5
+                        let distance = 46 + cycle * 160
+                        let alpha = (1 - cycle) * 0.55
+
+                        for segment in 0..<3 {
+                            let trail = Double(segment) * 9
+                            let sx = origin.x + cos(angle) * (distance - trail)
+                            let sy = origin.y + sin(angle) * (distance - trail) - 14 * cycle
+                            let r = (2.0 - Double(segment) * 0.55) * (1 - cycle * 0.4)
+                            canvas.fill(
+                                Path(ellipseIn: CGRect(
+                                    x: sx - r, y: sy - r, width: r * 2, height: r * 2
+                                )),
+                                with: .color(sparkGold.opacity(alpha * (1 - Double(segment) * 0.3)))
+                            )
+                        }
+                    }
                 }
             }
         }

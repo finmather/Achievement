@@ -14,6 +14,7 @@ struct GameDetailView: View {
     @State private var achievements: [Achievement]?
     @State private var meta: GameMeta?
     @State private var friendOwners: [PlayerProfile] = []
+    @State private var artColors: ArtPalette.Colors?
     @State private var loadError: String?
     @State private var hasCelebrated = false
 
@@ -24,11 +25,11 @@ struct GameDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Tokens.sectionGap) {
+            VStack(alignment: .leading, spacing: Tokens.sectionGapSnug) {
                 FloatingCover(game: currentGame)
                     .entrance(0)
 
-                TitleBlock(game: currentGame, meta: meta)
+                TitleBlock(game: currentGame, meta: meta, tint: artColors?.glow)
                     .entrance(1)
 
                 if currentGame.isPerfect {
@@ -39,7 +40,8 @@ struct GameDetailView: View {
                     game: currentGame,
                     estimate: achievements.flatMap {
                         CompletionEstimator.hoursToComplete(game: currentGame, achievements: $0)
-                    }
+                    },
+                    ringColors: artColors.map { [$0.glow, $0.deep] }
                 )
                 .entrance(2)
 
@@ -49,7 +51,7 @@ struct GameDetailView: View {
             .padding(.bottom, 40)
         }
         .scrollClipDisabled()
-        .background { BackdropArt(game: currentGame) }
+        .background { BackdropArt(game: currentGame, artColors: artColors) }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         // The compare push can originate here too, whichever tab's stack
@@ -61,7 +63,8 @@ struct GameDetailView: View {
             async let achievementsLoad: Void = loadAchievements()
             async let metaLoad: Void = loadMeta()
             async let ownersLoad: Void = loadFriendOwners()
-            _ = await (achievementsLoad, metaLoad, ownersLoad)
+            async let paletteLoad: Void = loadArtColors()
+            _ = await (achievementsLoad, metaLoad, ownersLoad, paletteLoad)
         }
         .onAppear {
             if currentGame.isPerfect, !hasCelebrated {
@@ -198,6 +201,20 @@ struct GameDetailView: View {
             friendOwners = owners
         }
     }
+
+    /// The page takes on the game's own colors, extracted from its cover.
+    private func loadArtColors() async {
+        guard artColors == nil else { return }
+        var image = await ImagePipeline.load(game.artwork.hero)
+        if image == nil {
+            image = await ImagePipeline.load(game.artwork.header)
+        }
+        let tags = home.library.genreTags[game.appID] ?? []
+        let colors = ArtPalette.colors(appID: game.appID, image: image, tags: tags)
+        withAnimation(.easeInOut(duration: 0.8)) {
+            artColors = colors
+        }
+    }
 }
 
 // MARK: - Header pieces
@@ -250,6 +267,8 @@ private struct FloatingCover: View {
 private struct TitleBlock: View {
     let game: Game
     let meta: GameMeta?
+    /// Art-derived accent for the chips — the page speaks the game's color.
+    var tint: Color?
 
     @State private var descriptionExpanded = false
 
@@ -266,12 +285,18 @@ private struct TitleBlock: View {
                         ForEach(meta.genres.prefix(3), id: \.self) { genre in
                             Text(genre)
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(tint ?? .secondary)
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 4)
-                                .background(Capsule().fill(.quaternary.opacity(0.5)))
+                                .background(
+                                    Capsule().fill(
+                                        tint.map { AnyShapeStyle($0.opacity(0.16)) }
+                                            ?? AnyShapeStyle(.quaternary.opacity(0.5))
+                                    )
+                                )
                         }
                     }
+                    .animation(.settle, value: tint != nil)
                 }
 
                 if let byline = meta.byline {
@@ -319,6 +344,8 @@ private struct PerfectRibbon: View {
 private struct ProgressPanel: View {
     let game: Game
     let estimate: Double?
+    /// Art-derived arc colors; falls back to the global completion language.
+    var ringColors: [Color]?
 
     var body: some View {
         HStack(spacing: 20) {
@@ -326,7 +353,8 @@ private struct ProgressPanel: View {
                 CompletionRing(
                     fraction: progress.fraction,
                     isPerfect: progress.isPerfect,
-                    lineWidth: 8
+                    lineWidth: 8,
+                    gradientOverride: progress.isPerfect ? nil : ringColors
                 ) {
                     Text(Format.percent(progress.fraction))
                         .font(.system(size: 19, weight: .bold, design: .rounded))

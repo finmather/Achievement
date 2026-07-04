@@ -8,7 +8,6 @@ struct LibraryView: View {
 
     @State private var searchText = ""
     @State private var sort: LibrarySort = .recentlyPlayed
-    @State private var scrollOffset: CGFloat = 0
     @Namespace private var zoom
 
     private var library: LibraryStore { home.library }
@@ -25,7 +24,7 @@ struct LibraryView: View {
 
     var body: some View {
         ZStack {
-            AuroraBackground(scrollOffset: scrollOffset)
+            AmbientBackground(palette: .library)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -46,7 +45,6 @@ struct LibraryView: View {
                 .padding(.bottom, 40)
             }
             .scrollClipDisabled()
-            .trackScrollOffset(into: $scrollOffset)
             .refreshable {
                 await library.refresh()
                 Haptics.success()
@@ -109,16 +107,19 @@ struct LibraryView: View {
     }
 
     private var loadingGrid: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(spacing: 16) {
-                BreathingPlaceholder(shape: .blob(28)).frame(height: 240)
-                BreathingPlaceholder(shape: .blob(28)).frame(height: 240)
+        VStack(spacing: 20) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(spacing: 16) {
+                    BreathingPlaceholder(shape: .blob(Tokens.Radius.art)).frame(height: 240)
+                    BreathingPlaceholder(shape: .blob(Tokens.Radius.art)).frame(height: 240)
+                }
+                VStack(spacing: 16) {
+                    BreathingPlaceholder(shape: .blob(Tokens.Radius.art)).frame(height: 240)
+                    BreathingPlaceholder(shape: .blob(Tokens.Radius.art)).frame(height: 240)
+                }
+                .padding(.top, 44)
             }
-            VStack(spacing: 16) {
-                BreathingPlaceholder(shape: .blob(28)).frame(height: 240)
-                BreathingPlaceholder(shape: .blob(28)).frame(height: 240)
-            }
-            .padding(.top, 44)
+            LoadingQuips()
         }
         .accessibilityLabel("Loading your library")
     }

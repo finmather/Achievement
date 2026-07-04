@@ -1,9 +1,10 @@
 import SwiftUI
 import AchievementCore
 
-/// Remote image with a graceful lifecycle: shimmer while loading, fade-in on
-/// arrival, and a URL fallback chain (older Steam titles lack portrait
-/// capsules, so cards fall back to the landscape header, then a placeholder).
+/// Remote game art on the cached pipeline: instant re-display from memory,
+/// disk persistence via URLCache, a breathing placeholder while loading,
+/// and a URL fallback chain (older Steam titles lack portrait capsules, so
+/// cards fall back to the landscape header, then a styled placeholder).
 struct RemoteArtView: View {
     let urls: [URL]
     var contentMode: ContentMode = .fill
@@ -11,37 +12,31 @@ struct RemoteArtView: View {
     @State private var urlIndex = 0
 
     var body: some View {
-        AsyncImage(
+        CachedImage(
             url: urls.indices.contains(urlIndex) ? urls[urlIndex] : nil,
-            transaction: Transaction(animation: .easeOut(duration: 0.35))
-        ) { phase in
-            switch phase {
-            case .success(let image):
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
-                    .transition(.opacity)
-            case .failure:
-                placeholder
-                    .onAppear {
-                        if urlIndex < urls.count - 1 { urlIndex += 1 }
-                    }
-            case .empty:
-                placeholder.breathing()
-            @unknown default:
-                placeholder
+            contentMode: contentMode,
+            onFailure: {
+                if urlIndex < urls.count - 1 { urlIndex += 1 }
             }
+        ) { isLoading in
+            placeholder(breathes: isLoading)
         }
     }
 
-    private var placeholder: some View {
-        Rectangle()
+    @ViewBuilder
+    private func placeholder(breathes: Bool) -> some View {
+        let base = Rectangle()
             .fill(.quaternary)
             .overlay {
                 Image(systemName: "gamecontroller")
                     .font(.title2)
                     .foregroundStyle(.tertiary)
             }
+        if breathes {
+            base.breathing()
+        } else {
+            base
+        }
     }
 }
 

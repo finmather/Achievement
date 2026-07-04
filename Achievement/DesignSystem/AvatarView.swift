@@ -12,18 +12,8 @@ struct AvatarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
-            if let url = profile.avatarFullURL ?? profile.avatarSmallURL {
-                AsyncImage(url: url) { phase in
-                    if case .success(let image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        initials
-                    }
-                }
-            } else {
-                initials
-            }
+        CachedImage(url: profile.avatarFullURL ?? profile.avatarSmallURL) { _ in
+            initials
         }
         .frame(width: size, height: size)
         .clipShape(Circle())

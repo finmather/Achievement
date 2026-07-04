@@ -27,7 +27,7 @@ struct RootView: View {
 private struct LaunchPlaceholder: View {
     var body: some View {
         ZStack {
-            AuroraBackground(intensity: .hero)
+            AmbientBackground(palette: .onboarding)
             AppMark(size: 72)
         }
     }

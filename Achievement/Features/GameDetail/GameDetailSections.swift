@@ -11,11 +11,17 @@ import AchievementCore
 /// thousands of points and must never participate in layout.
 struct BackdropArt: View {
     let game: Game
+    /// Art-derived colors — the page is lit by the game's own world.
+    var artColors: ArtPalette.Colors?
+
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         ZStack {
-            AuroraBackground()
+            AmbientBackground(
+                palette: artColors.map { SectionPalette.art(glow: $0.glow, deep: $0.deep) }
+                    ?? .library
+            )
 
             Color.clear
                 .overlay {
@@ -23,11 +29,14 @@ struct BackdropArt: View {
                         .blur(radius: 42, opaque: true)
                 }
                 .clipped()
-                .opacity(scheme == .dark ? 0.55 : 0.4)
+                .opacity(scheme == .dark ? 0.5 : 0.38)
                 .overlay {
                     LinearGradient(
                         colors: scheme == .dark
-                            ? [.black.opacity(0.25), .black.opacity(0.6)]
+                            ? [
+                                (artColors?.deep ?? .black).opacity(0.35),
+                                Color.black.opacity(0.62),
+                            ]
                             : [.white.opacity(0.35), .white.opacity(0.7)],
                         startPoint: .top, endPoint: .bottom
                     )
@@ -346,7 +355,7 @@ private struct NotesEditor: View {
                 .font(.body)
                 .scrollContentBackground(.hidden)
                 .padding(Tokens.screenMargin)
-                .background(AuroraBackground())
+                .background(AmbientBackground(palette: .library))
                 .navigationTitle("Notes")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
