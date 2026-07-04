@@ -226,3 +226,45 @@ Remaining polish candidates (non-blocking, noted from final review): a
 faint clip edge where the dashboard arc's glow meets its bounds in light
 mode; motion video review pending (artifact uploads fine — needs a viewer);
 zoom transition restore.
+
+---
+
+## 2026-07-04 — Production polish pass: verified across 45 captures + video
+
+All seven items of the production brief landed and are verified (16 Pro
+dark+light + iPhone SE dark, 15 states each, plus a 6½-minute motion video
+reviewed via ffmpeg contact sheet).
+
+**Rendering root causes (not symptom patches).**
+- glassChip's shadow was applied after the stroke overlay, so the hairline
+  cast its own shadow → corner ring artifacts. Shadow now casts from the
+  flattened material silhouette (`compositingGroup`) only.
+- ScrollViews clip by default → card shadows, gold auras, and overhanging
+  ring badges sliced at rail edges. `scrollClipDisabled()` + headroom
+  padding everywhere; clipping now exists only on art.
+- The dashboard hero's interior `.clipped()` (the arc's flat-cut glow) is
+  gone entirely — the arc fits its block and both caps render, verified in
+  both schemes.
+- **The demo-video root cause**: xcodebuild runs UI tests on a *cloned*
+  simulator by default while `simctl recordVideo` watched the original —
+  hence six minutes of an idle phone. `-parallel-testing-enabled NO` puts
+  the tests on the recorded device. Playback verified from Windows via an
+  ffmpeg contact sheet uploaded as a CI artifact.
+
+**Game Details is the app's strongest screen now**: store metadata header
+(genre chips, dev · publisher · year, expandable description), progress
+panel with a pace-based time-to-100% estimate ("≈ 23 hrs at your pace"),
+recent-unlocks strip, Road-to-100% timeline with a spotlit NEXT waypoint,
+data-driven Insights (no fabricated tips — rarest earned, unlock pace,
+hunting span), friends-who-own row, private autosaving notes, a
+more-like-this rail drawn from the player's own library, and the full
+grouped list. All sections scroll-reveal.
+
+**Consistency + density**: Tokens.swift (margins/radii/icon sizes) and a
+three-spring motion vocabulary (snap/settle/sweep) swept through; library
+cards carry name+hours captions; dashboard shows unlocked-of-total and
+counts up; zoom transition restored (the old "stuck portal" was the
+backdrop bug, and the video now proves zoom settles correctly).
+
+One compile fix this cycle: SwiftUI can't unify `.secondary` with
+`.primary.opacity()` in a ternary — wrap both in `AnyShapeStyle`.
