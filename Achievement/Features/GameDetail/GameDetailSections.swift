@@ -314,7 +314,9 @@ struct NotesCard: View {
                      ? "Add strategies, boss orders, or anything future-you will thank you for."
                      : note)
                     .font(.subheadline)
-                    .foregroundStyle(note.isEmpty ? .secondary : .primary.opacity(0.85))
+                    .foregroundStyle(note.isEmpty
+                                     ? AnyShapeStyle(.secondary)
+                                     : AnyShapeStyle(.primary.opacity(0.85)))
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
