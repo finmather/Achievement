@@ -268,3 +268,37 @@ backdrop bug, and the video now proves zoom settles correctly).
 
 One compile fix this cycle: SwiftUI can't unify `.secondary` with
 `.primary.opacity()` in a ternary — wrap both in `AnyShapeStyle`.
+
+---
+
+## 2026-07-04 — Design Pass 3: personality, motion, visual identity
+
+The "AI gradient" era is over. Verified across the full artifact set:
+
+- **Ambient light, not gradients**: `AmbientBackground` layers a
+  near-neutral base with two-three low-saturation radial blooms and a
+  luminance depth pass. Four section moods confirmed on screen: warm ember
+  dashboard, slate library, teal friends (with the TOP RIVAL spotlight
+  card breaking list uniformity), indigo-gold profile.
+- **Art-derived game themes work**: Hollow Knight's page renders in its
+  own deep blues (chips, rings, backdrop) exactly as the brief's example;
+  Hades runs ember. `ArtPalette` = 20×20 downsample → weighted hue
+  histogram → glow/deep pair, genre fallback.
+- **The signature ring landed**: depth track, angular gradient, layered
+  glow, and the glowing pearl riding the arc tip — visible on the hero
+  arc, panel rings, and even 30pt badge rings, no clipping anywhere.
+- **Never-blank images**: `CachedImage` (NSCache + 150 MB URLCache)
+  replaced AsyncImage everywhere.
+- Personality shipped: loading quips, count-up stats, trophy wiggle,
+  golden celebration sparks, zoom from dashboard chips, varied section
+  rhythm (airy/standard/snug).
+
+**Two QA findings, one theme — ambient motion must know when to stop:**
+1. Full-screen bloom *position* drift starves XCUITest accessibility
+   snapshots → query timeouts on the first tap. Ambient drift freezes
+   under `UI_TEST_DEMO_MODE` (mirrors reduce-motion).
+2. The celebration's sparks cycled forever, so its "settled" state never
+   settled — restless for users, fatal for tap quiescence-waits. The
+   ember field now lives exactly as long as the choreography and pauses
+   its TimelineView for good. Lesson recorded: every continuous
+   animation needs an ending or an idle state.
